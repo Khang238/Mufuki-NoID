@@ -1,0 +1,40 @@
+void loop() {
+// Read buttons
+  if (digitalRead(btnPins[0]) == LOW) currentCal = 0; // Button 1 -> cal switch 0
+  if (digitalRead(btnPins[1]) == LOW) currentCal = 1; // Button 2 -> cal switch 1
+  if (digitalRead(btnPins[2]) == LOW) currentCal = 2; // Button 3 -> cal switch 2
+  if (digitalRead(btnPins[3]) == LOW) currentCal = -1; // Button 4 -> stop calibration
+
+  u8g2.clearBuffer();  
+  u8g2.setFont(u8g2_font_ncenB08_tr);
+
+  for (int i = 0; i < 3; i++) {
+    int raw = analogRead(adcPins[i]);
+    if (currentCal == i) {
+      // Update calibration min/max
+      if (raw < calMin[i]) calMin[i] = raw + 10;
+      if (raw > calMax[i]) calMax[i] = raw - 10;
+    }
+    // Normalize
+    float norm = (raw - calMin[i]) / (float)(calMax[i] - calMin[i] + 1);
+    norm = constrain(norm, 0.0, 1.0);
+
+    // LED PWM
+    int pwm = (int)(norm * 255);
+    analogWrite(ledPins[i], pwm);
+
+    // Print
+    String line = "S" + String(i+1) + ": raw=" + String(raw) + " norm=" + String(norm, 2);
+    u8g2.drawStr(0, 10 * (i+1), line.c_str());
+  }
+
+  if (currentCal >= 0) {
+    u8g2.drawStr(0, 50, ("Calibrating S" + String(currentCal+1)).c_str());
+  }
+
+  u8g2.drawStr(0, 60, ("CPU Temp: " + String(temperatureRead())).c_str());
+
+  u8g2.sendBuffer(); 
+
+  //delay(1000);
+}
