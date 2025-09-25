@@ -1,2 +1,2 @@
-# Mufuki-NoID
-A Osu! keypad project
+## Mufuki Project
+# simple osu! keypad
