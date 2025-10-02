@@ -1,2 +1,2 @@
-## Mufuki Project
-# simple osu! keypad
+# Mufuki Project
+simple osu! keypad

@@ -205,13 +205,20 @@ void updateRipple() {
   }
 }
 
-int overSample(int pin, int samples = 16) {
+int overSample(int chan, int samples = 16) {
   long sum = 0;
   for (int i = 0; i < samples; i++) {
-    sum += analogRead(pin);
+    sum += analogRead(adcPins[chan]);
     delayMicroseconds(10);
   }
   return sum / samples;
+}
+
+float y[] = {0.0, 0.0, 0.0};
+int expoMovAvr(int chan, float alpha = 0.05) {
+  float x = analogRead(adcPins[chan]);
+  y[chan] = y[chan] + alpha * (x - y[chan]);
+  return y[chan];
 }
 
 void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text) {
@@ -358,7 +365,15 @@ void drawGraph(int x, int y) {
 void inputTypeDigitalEmulation() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
-      rawVal[i] = analogRead(adcPins[i]);
+      if (doFilter) {
+        if (filterType == 0) {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = overSample(i);
+        } else {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = expoMovAvr(i);
+        }
+      } else rawVal[i] = analogRead(adcPins[i]);
       float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
       nowPress[i] = (hall > actuation);
       if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
@@ -376,7 +391,15 @@ void inputTypeDigitalEmulation() {
 void inputTypeHysteresisHandling() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
-      rawVal[i] = analogRead(adcPins[i]);
+      if (doFilter) {
+        if (filterType == 0) {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = overSample(i);
+        } else {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = expoMovAvr(i);
+        }
+      } else rawVal[i] = analogRead(adcPins[i]);
       float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
       if (hall > upperThreshold)
         nowPress[i] = true;
@@ -397,7 +420,15 @@ void inputTypeHysteresisHandling() {
 void inputTypeDynamicActuation() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
-      rawVal[i] = analogRead(adcPins[i]);
+      if (doFilter) {
+        if (filterType == 0) {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = overSample(i);
+        } else {
+          for (int i = 0; i < 3; i++)
+            rawVal[i] = expoMovAvr(i);
+        }
+      } else rawVal[i] = analogRead(adcPins[i]);
       float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
       if (hall > windowFoot[i] + windowSize) {
         nowPress[i] = true;
@@ -475,15 +506,15 @@ void calibMenu() {
           ledcWrite(i, 0);
       }
       if (calib) {
-        calMin[nowCal] = 2500;
-        calMax[nowCal] = 2500;
+        calMin[nowCal] = 4095;
+        calMax[nowCal] = 0;
       }
       break;
     case 1:
       calib = !calib;
       if (calib) {
-        calMin[nowCal] = 2500;
-        calMax[nowCal] = 2500;
+        calMin[nowCal] = 4095;
+        calMax[nowCal] = 0;
       }
       break;
     case 2:
@@ -497,8 +528,8 @@ void calibMenu() {
           ledcWrite(i, 0);
       }
       if (calib) {
-        calMin[nowCal] = 2500;
-        calMax[nowCal] = 2500;
+        calMin[nowCal] = 4095;
+        calMax[nowCal] = 0;
       }
       break;
     case 3:
@@ -668,6 +699,60 @@ void inputMenu() {
         break;
     }
     u8g2.sendBuffer();
+  }
+}
+
+void filtMenu() {
+  bool running = true;
+  for (int i = 0; i < GRAPH_WIDTH; i++) {
+    graphData[i] = 0;
+  }
+  while (running) {
+    updateInput();
+    float maxHall = max(max(hallVal[0], hallVal[1]), hallVal[2]);
+    float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
+    int btn = getButton();
+    switch (btn) {
+      case 0: filterType = 0; break;
+      case 1: doFilter = !doFilter; break;
+      case 2: filterType = 1; break;
+      case 3: running = false; break;
+      default: break;
+    }
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    u8g2.drawStr(0, 12, doFilter ? "Filter" : "Filter [Off]");
+    u8g2.drawStr(0, 24, ("1 " + String((int)rawVal[0])).c_str());
+    u8g2.drawStr(0, 35, ("2 " + String((int)rawVal[1])).c_str());
+    u8g2.drawStr(0, 46, ("3 " + String((int)rawVal[2])).c_str());
+    u8g2.setFont(u8g2_font_5x8_mf);
+    u8g2.drawStr(108, 12, String(maxHall).c_str());
+    u8g2.drawStr(0, 56, filterType == 0 ? "> F1: OV" : "F1: OV"); u8g2.drawStr(50, 56, doFilter ? "F2: Disable" : "F2: Enable");
+    u8g2.drawStr(0, 64, filterType == 1 ? "> F3: AV" : "F3: AV"); u8g2.drawStr(50, 64, "F4: Exit");
+    pushGraphValue(maxHall);
+    drawGraph(40, 14);
+      switch (inputHandler) {
+        case 0: u8g2.drawLine(40, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14); break;
+        case 1:
+          u8g2.drawLine(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          break;
+        case 2:
+          u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
+          break;
+        default: break;
+      }
+    u8g2.sendBuffer();
+  }
+  if (doFilter) {
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    int curious = u8g2.userInterfaceMessage(
+      "ADC may change",
+      "slower while display",
+      "is working",
+      " Ok \n More "
+    ); // for later info
   }
 }
 
@@ -1862,6 +1947,8 @@ void showDebug() {
         u8g2.drawStr(0, 30, tmp.c_str());
         tmp = "mac:" + String(WiFi.macAddress());
         u8g2.drawStr(0, 40, tmp.c_str());
+        tmp = "adcDeadZone:" + String(deadZone);
+        u8g2.drawStr(0, 50, tmp.c_str());
         break;
       }
       case 3: {
@@ -1879,10 +1966,76 @@ void showDebug() {
   }
 }
 
+void deadCalib() {
+  const char menuItems[] = 
+    "Auto Calibrate\n"
+    "Manual Set"
+  ;
+  int option = 1;
+  while (option != 0) {
+    option = u8g2.userInterfaceSelectionList("DeadZone Calibrate", option, menuItems);
+    if (option == 1) {
+      for (int i = 0; i < 5; i++){
+        u8g2.clearBuffer();
+        u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
+        u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
+        String tmp = "[" + String(5 - i) + "s]";
+        u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 60, tmp.c_str());
+        u8g2.sendBuffer();
+        delay(1000);
+      }
+      u8g2.clearBuffer();
+      u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
+      u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
+      String tmp = "[Started]";
+      u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 60, tmp.c_str());
+      u8g2.sendBuffer();
+      int aMax = 0;
+      int aMin = 4095;
+      delay(1000);
+      for (int sw = 0; sw < 3; sw++) {
+        u8g2.clearBuffer();
+        u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
+        u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
+        String tmp = "[" + String(sw + 1) + "/3]";
+        u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 60, tmp.c_str());
+        u8g2.sendBuffer();
+        for (int i = 0; i < 2000; i++) {
+          int adcVal = 0;
+          if (doFilter) {
+            if (filterType == 0) {
+              adcVal = overSample(sw);
+            } else {
+              adcVal = expoMovAvr(sw);
+            }
+          } else adcVal = analogRead(adcPins[sw]);
+          if (adcVal > aMax) aMax = adcVal;
+          if (adcVal < aMin) aMin = adcVal;
+          delay(1);
+        }
+      }
+      deadZone = aMax - aMin;
+    }
+    else if (option == 2) {
+    const int deadZoneVals[] = {0, 16, 32, 64, 128, 256};
+    const char idk[] = "0\n16\n32\n64\n128\n256";
+    int sel = u8g2.userInterfaceSelectionList("Manual Set", 0, idk);
+    int deadZone = deadZoneVals[sel];
+    }
+  }
+  u8g2.userInterfaceMessage(
+    "Remember to",
+    "go to calibration",
+    "menu to recalibrate",
+    " Ok "
+  );
+}
+
 void otherMenu() {
   int sel = 1;
   const char menuItems[] =
     "Display\n"
+    "Deadzone Calirate\n"
     "MPU\n"
     "Web App\n"
     "Debug"
@@ -1892,8 +2045,9 @@ void otherMenu() {
     sel = u8g2.userInterfaceSelectionList("Other", sel, menuItems);
     switch (sel) {
       case 1: displaySetting(); break;
-      case 2: mpuMenu(); break;
-      case 4: showDebug(); break;
+      case 3: mpuMenu(); break;
+      case 5: showDebug(); break;
+      case 2: deadCalib(); break;
       default: break;
     }
   }
@@ -1955,6 +2109,7 @@ void mainMenu() {
   const char menu_items[] =
     "Calibration\n"
     "Input handling\n"
+    "Filter\n"
     "Effects\n"
     "Connection\n"
     "Other\n"
@@ -1977,22 +2132,13 @@ void mainMenu() {
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
     sel = u8g2.userInterfaceSelectionList("Main Menu", sel, menu_items);
     switch (sel) {
-      case 1:
-        calibMenu();
-        break;
-      case 2:
-        inputMenu();
-        break;
-      case 3:
-        effectMenu();
-        break;
-      case 4:
-        connectMenu();
-        break;
-      case 5:
-        otherMenu();
-        break;
-      case 6:
+      case 1: calibMenu(); break;
+      case 2: inputMenu(); break;
+      case 3: filtMenu(); break;
+      case 4: effectMenu(); break;
+      case 5: connectMenu(); break;
+      case 6: otherMenu(); break;
+      case 7:
         if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {;
           while (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {
             int c = u8g2.userInterfaceMessage(
@@ -2008,9 +2154,7 @@ void mainMenu() {
         }
         otaUpdate();
         break;
-      case 7:
-        about();
-        break;
+      case 8: about(); break;
       default:
         break;
     }
