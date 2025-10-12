@@ -106,12 +106,12 @@
  /** @brief Un-comment if not using NimBLE Client functions \n
  *  Reduces flash size by approx. 7kB.
  */
-// #define CONFIG_BT_NIMBLE_ROLE_CENTRAL 0
+#define CONFIG_BT_NIMBLE_ROLE_CENTRAL 0
 
 /** @brief Un-comment if not using NimBLE Scan functions \n
  *  Reduces flash size by approx. 26kB.
  */
-// #define CONFIG_BT_NIMBLE_ROLE_OBSERVER 0
+#define CONFIG_BT_NIMBLE_ROLE_OBSERVER 0
 
 /** @brief Un-comment if not using NimBLE Server functions \n
  *  Reduces flash size by approx. 16kB.

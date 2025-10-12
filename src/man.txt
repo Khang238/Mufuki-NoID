@@ -1,0 +1,60 @@
+bool loadConfig(const char *path = "/default.json") {
+  File file = LittleFS.open(path, "w");
+  if (!file) return false;
+
+  StaticJsonDocument<1024> doc;
+
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  if (error) {
+    return false;
+  }
+
+  if (doc.containsKey("cX")) {
+    for (int i = 0; i < 3; i++) {
+      calMax[i] = doc["cX"][i] | calMax[i];
+    }
+  }
+  if (doc.containsKey("cM")) {
+    for (int i = 0; i < 3; i++) {
+      calMin[i] = doc["cM"][i] | calMin[i];
+    }
+  }
+  if (doc.containsKey("lO")) {
+    for (int i = 0; i < 6; i++) {
+      layout[i] = doc["lO"][i] | layout[i];
+    }
+  }
+  if (doc.containsKey("rC")) {
+    for (int i = 0; i < 3; i++) {
+      color[i] = doc["rC"][i] | color[i];
+    }
+  }
+
+  if (doc.containsKey("rB")) {int data = doc["rB"].as<int>; rgbBri = constrain(data, 0, 255);}
+  if (doc.containsKey("dZ")) {int data = doc["dZ"].as<int>; deadZone = constrain(data, 0, 4095);}
+  if (doc.containsKey("lg")) {int data = doc["lg"].as<int>; logoType = constrain(data, 0, 11);}
+  if (doc.containsKey("gT")) {int data = doc["gT"].as<int>; glowType = constrain(data, 0, 5);}
+  if (doc.containsKey("sB")) {int data = doc["sB"].as<int>; screenBri = constrain(data, 0, 255);}
+  if (doc.containsKey("fT")) {int data = doc["fT"].as<int>; filterType = constrain(data, 0, 2);}
+  if (doc.containsKey("rS")) {int data = doc["rS"].as<int>; rainbowStep = data;}
+  if (doc.containsKey("rI")) {int data = doc["rI"].as<int>; rgbInterval = data;}
+  if (doc.containsKey("iH")) {int data = doc["iH"].as<int>; inputHandler = constrain(data, 0, 2);}
+  if (doc.containsKey("sO")) {int data = doc["sO"].as<int>; screenOffDuration = data;}
+  if (doc.containsKey("sS")) {int data = doc["sS"].as<int>; screenSaveDuration = data;}
+
+  if (doc.containsKey("rL")) {rgb = doc["rL"].as<bool>;}
+  if (doc.containsKey("dF")) {doFilter = doc["dF"].as<bool>;}
+  if (doc.containsKey("uG")) {underGlow = doc["uG"].as<bool>;}
+  if (doc.containsKey("dR")) {doRainbow = doc["dR"].as<bool>;}
+
+  if (doc.containsKey("aT")) {float data = doc["aT"].as<float>; actuation = (data > 0.0f && data < 1.0f) ? data | actuation;}
+  if (doc.containsKey("wS")) {float data = doc["wS"].as<float>; windowSize = (data > 0.0f && data < 1.0f) ? data | windowSize;}
+  if (doc.containsKey("uT")) {float data = doc["uT"].as<float>; upperThreshold = (data > 0.0f && data < 1.0f) ? data | upperThreshold;}
+  if (doc.containsKey("lT")) {float data = doc["lT"].as<float>; lowerThreshold = (data > 0.0f && data < 1.0f) ? data | lowerThreshold;}
+
+  if (doc.containsKey("bN")) {const char* data = doc["bN"]; if (val != nullptr) btName = String(data);}
+  if (doc.containsKey("sL")) {const char* data = doc["sL"]; if (val != nullptr) screenLogo = String(data);}
+
+  return true;
+}

@@ -1,11 +1,11 @@
 # Mufuki Project
 ## Updated:
-- Remake "DeadZone Auto Calibrate"
+- Save Profiles with free will
+- add FS debug
 - My Mufuki's ip just changed
 
 ## Planing:
-- Save Profiles
-- Web App
+- Web App (yeah bois)
 
 ###### User manual can be found [here](https://youtu.be/dQw4w9WgXcQ?si=5hyU3H2vomW0COuk)
 

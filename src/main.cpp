@@ -3,15 +3,26 @@
 #include <ctype.h>
 #include <Arduino.h>
 #include <U8g2lib.h>
-#include <BleMouse.h>
-#include <BleKeyboard.h>
+#include <LittleFS.h>
 #include <BleGamepad.h>
 #include <ArduinoOTA.h>
+//#include <BleMouse.h>
+#include <ArduinoJson.h>
+#include <BleKeyboard.h>
+#include <NimBLEDevice.h>
 #include <MPU6050_light.h>
 #include <Adafruit_NeoPixel.h>
 
-#include "esptinyusb.h"
+#include "HIDTypes.h"
+#include "sdkconfig.h"
+#include <NimBLEUtils.h>
+#include <NimBLEServer.h>
+#include <NimBLEHIDDevice.h>
+#include <NimBLECharacteristic.h>
+
+#include "esp_task_wdt.h"
 #include "hidkeyboard.h"
+#include "esptinyusb.h"
 #include "keyName.h"
 #include "img.h"
 
@@ -25,6 +36,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
   U8X8_PIN_NONE
 );
 
+// Hardware pins, change if needed
 const int adcPins[3] = {1, 2, 3};        // Hall switch
 const int ledPins[3] = {7, 6, 5};        // LED output
 const int btnPins[4] = {11, 10, 12, 13}; // Buttons
@@ -97,7 +109,7 @@ uint32_t lastLoopTime = 0;
 bool fromMenu = false;
 String btName = "Mufuki";
 
-uint8_t preLayout[][6] = {
+const uint8_t preLayout[][6] = {
   {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2}, // osu!
   {HID_KEY_A, HID_KEY_W, HID_KEY_D, HID_KEY_Q, HID_KEY_E, HID_KEY_S},        // WASD
   {HID_KEY_ARROW_LEFT, HID_KEY_SPACE, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_UP, HID_KEY_ENTER, HID_KEY_ARROW_DOWN}, // Arrow
@@ -105,7 +117,154 @@ uint8_t preLayout[][6] = {
   {HID_KEY_ENTER, HID_KEY_SPACE, HID_KEY_BACKSPACE, HID_KEY_ARROW_LEFT, HID_KEY_ARROW_RIGHT, HID_KEY_ESCAPE}, // BLE Keyboard, useful for me
 };
 
-// why tf there is so much variables for such a osu keyboard i'm crying (>_<)
+// why tf there is so much variables for such a osu keyboard bruh
+
+// Test feature, will be remove if not working
+bool saveConfig(const char *path = "/default.json") {
+  File file = LittleFS.open(path, "w");
+  if (!file) return false;
+
+  DynamicJsonDocument doc(1024); // dùng DynamicJsonDocument thay vì StaticJsonDocument
+
+  // array
+  doc["cX"][0] = calMax[0];
+  doc["cX"][1] = calMax[1];
+  doc["cX"][2] = calMax[2];
+
+  doc["cM"][0] = calMin[0];
+  doc["cM"][1] = calMin[1];
+  doc["cM"][2] = calMin[2];
+
+  for (int i = 0; i < 6; i++) {
+    doc["lO"][i] = layout[i];
+  }
+
+  for (int i = 0; i < 3; i++) {
+    doc["rC"][i] = color[i];
+  }
+
+  // int
+  doc["dZ"] = deadZone;
+  doc["fT"] = filterType;
+  doc["iH"] = inputHandler;
+  doc["sS"] = screenSaveDuration;
+  doc["sO"] = screenOffDuration;
+  doc["sB"] = screenBri;
+  doc["lg"] = logoType;
+  doc["gT"] = glowType;
+  doc["rB"] = rgbBri;
+  doc["rS"] = rainbowStep;
+  doc["rI"] = rgbInterval;
+
+  // float
+  doc["aT"] = actuation;
+  doc["uT"] = upperThreshold;
+  doc["lT"] = lowerThreshold;
+  doc["wS"] = windowSize;
+
+  // bool
+  doc["dF"] = doFilter;
+  doc["uG"] = underGlow;
+  doc["rL"] = rgb;
+  doc["dR"] = doRainbow;
+
+  // string
+  doc["bN"] = btName;
+  doc["sL"] = screenLogo;
+
+  if (serializeJsonPretty(doc, file) == 0) {
+    file.close();
+    return false;
+  }
+  file.close();
+  return true;
+}
+
+bool loadConfig(const char *path = "/default.json") {
+  File file = LittleFS.open(path, "r");
+  if (!file) return false;
+
+  DynamicJsonDocument doc(1024);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  if (error) {
+    return false;
+  }
+
+  // array float calMax
+  if (doc["cX"].is<JsonArray>()) {
+    for (int i = 0; i < 3; i++) {
+      calMax[i] = doc["cX"][i] | calMax[i];
+    }
+  }
+
+  if (doc["cM"].is<JsonArray>()) {
+    for (int i = 0; i < 3; i++) {
+      calMin[i] = doc["cM"][i] | calMin[i];
+    }
+  }
+
+  if (doc["lO"].is<JsonArray>()) {
+    for (int i = 0; i < 6; i++) {
+      layout[i] = doc["lO"][i] | layout[i];
+    }
+  }
+
+  if (doc["rC"].is<JsonArray>()) {
+    for (int i = 0; i < 3; i++) {
+      color[i] = doc["rC"][i] | color[i];
+    }
+  }
+
+  // int
+  if (doc["rB"].is<int>()) rgbBri = constrain(doc["rB"].as<int>(), 0, 255);
+  if (doc["dZ"].is<int>()) deadZone = constrain(doc["dZ"].as<int>(), 0, 4095);
+  if (doc["lg"].is<int>()) logoType = constrain(doc["lg"].as<int>(), 0, 12);
+  if (doc["gT"].is<int>()) glowType = constrain(doc["gT"].as<int>(), 0, 5);
+  if (doc["sB"].is<int>()) screenBri = constrain(doc["sB"].as<int>(), 0, 255);
+  if (doc["fT"].is<int>()) filterType = constrain(doc["fT"].as<int>(), 0, 2);
+  if (doc["rS"].is<int>()) rainbowStep = doc["rS"].as<int>();
+  if (doc["rI"].is<int>()) rgbInterval = doc["rI"].as<int>();
+  if (doc["iH"].is<int>()) inputHandler = constrain(doc["iH"].as<int>(), 0, 2);
+  if (doc["sO"].is<int>()) screenOffDuration = doc["sO"].as<int>();
+  if (doc["sS"].is<int>()) screenSaveDuration = doc["sS"].as<int>();
+
+  // bool
+  if (doc["rL"].is<bool>()) rgb = doc["rL"].as<bool>();
+  if (doc["dF"].is<bool>()) doFilter = doc["dF"].as<bool>();
+  if (doc["uG"].is<bool>()) underGlow = doc["uG"].as<bool>();
+  if (doc["dR"].is<bool>()) doRainbow = doc["dR"].as<bool>();
+
+  // float
+  if (doc["aT"].is<float>()) {
+    float data = doc["aT"].as<float>();
+    if (data > 0.0f && data < 1.0f) actuation = data;
+  }
+  if (doc["wS"].is<float>()) {
+    float data = doc["wS"].as<float>();
+    if (data > 0.0f && data < 1.0f) windowSize = data;
+  }
+  if (doc["uT"].is<float>()) {
+    float data = doc["uT"].as<float>();
+    if (data > 0.0f && data < 1.0f) upperThreshold = data;
+  }
+  if (doc["lT"].is<float>()) {
+    float data = doc["lT"].as<float>();
+    if (data > 0.0f && data < 1.0f) lowerThreshold = data;
+  }
+
+  // String
+  if (doc["bN"].is<const char*>()) {
+    const char* data = doc["bN"].as<const char*>();
+    if (data) btName = String(data);
+  }
+  if (doc["sL"].is<const char*>()) {
+    const char* data = doc["sL"].as<const char*>();
+    if (data) screenLogo = String(data);
+  }
+
+  return true;
+}
 
 struct LedFade {
   bool active;
@@ -258,6 +417,12 @@ int getButton() {
   return -1;
 }
 
+void forceReset() {
+  esp_task_wdt_init(1, true);
+  esp_task_wdt_add(NULL);
+  while (true) {}
+}
+
 void otaUpdate() {
   static uint8_t spinnerIndex = 0;
   static bool doingOTA = true;
@@ -303,7 +468,7 @@ void otaUpdate() {
       u8g2.sendBuffer();
       l.fill(l.Color(255, 255, 255));
       l.show();
-      ESP.restart();
+      forceReset();
       doingOTA = false;
     });
 
@@ -329,7 +494,7 @@ void otaUpdate() {
     if (btn == 3) {doingOTA = false; break;}
     delay(100);
   }
-  ESP.restart();
+  forceReset();
 }
 
 #define GRAPH_WIDTH 88
@@ -1145,8 +1310,8 @@ void mgp() {
         l.show();
       }
     }
-    if (millis() - lps < 16) delay(millis() - lps);
-    else lps = millis();
+    if (millis() - lps < 10) delay(millis() - lps);
+    lps = millis();
   }
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
@@ -1154,36 +1319,122 @@ void mgp() {
   u8g2.sendBuffer();
   g.end();
   BLEDevice::deinit(true);
+  NimBLEDevice::deinit(true);
   delay(1000);
   l.setBrightness(0);
   l.show();
   u8g2.setPowerSave(0);
 }
 
+NimBLECharacteristic *inputReport;
+bool deviceConnected = false;
+
+class ServerCallbacks : public NimBLEServerCallbacks {
+  void onConnect(NimBLEServer *pServer, NimBLEConnInfo&) override {
+    deviceConnected = true;
+  }
+  void onDisconnect(NimBLEServer *pServer, NimBLEConnInfo&, int) override {
+    deviceConnected = false;
+    pServer->getAdvertising()->start();
+  }
+};
+
+// i'm the crazy one
 void marm() {
   l.setBrightness(255);
-  BleMouse m(btName.c_str(), "NoID", 100);
-  m.begin();
+  
+  static const uint8_t hrd[] = {
+    USAGE_PAGE(1), 0x01,  // USAGE_PAGE (Generic Desktop)
+    USAGE(1), 0x02,       // USAGE (Mouse)
+    COLLECTION(1), 0x01,  // COLLECTION (Application)
+    USAGE(1), 0x01,       //   USAGE (Pointer)
+    COLLECTION(1), 0x00,  //   COLLECTION (Physical)
+    // ------------------------------------------------- Buttons (Left, Right, Middle, Back, Forward)
+    USAGE_PAGE(1), 0x09,       //     USAGE_PAGE (Button)
+    USAGE_MINIMUM(1), 0x01,    //     USAGE_MINIMUM (Button 1)
+    USAGE_MAXIMUM(1), 0x05,    //     USAGE_MAXIMUM (Button 5)
+    LOGICAL_MINIMUM(1), 0x00,  //     LOGICAL_MINIMUM (0)
+    LOGICAL_MAXIMUM(1), 0x01,  //     LOGICAL_MAXIMUM (1)
+    REPORT_SIZE(1), 0x01,      //     REPORT_SIZE (1)
+    REPORT_COUNT(1), 0x05,     //     REPORT_COUNT (5)
+    HIDINPUT(1), 0x02,         //     INPUT (Data, Variable, Absolute) ;5 button bits
+    // ------------------------------------------------- Padding
+    REPORT_SIZE(1), 0x03,   //     REPORT_SIZE (3)
+    REPORT_COUNT(1), 0x01,  //     REPORT_COUNT (1)
+    HIDINPUT(1), 0x03,      //     INPUT (Constant, Variable, Absolute) ;3 bit padding
+    // ------------------------------------------------- X/Y position, Wheel
+    USAGE_PAGE(1), 0x01,       //     USAGE_PAGE (Generic Desktop)
+    USAGE(1), 0x30,            //     USAGE (X)
+    USAGE(1), 0x31,            //     USAGE (Y)
+    USAGE(1), 0x38,            //     USAGE (Wheel)
+    LOGICAL_MINIMUM(1), 0x81,  //     LOGICAL_MINIMUM (-127)
+    LOGICAL_MAXIMUM(1), 0x7f,  //     LOGICAL_MAXIMUM (127)
+    REPORT_SIZE(1), 0x08,      //     REPORT_SIZE (8)
+    REPORT_COUNT(1), 0x03,     //     REPORT_COUNT (3)
+    HIDINPUT(1), 0x06,         //     INPUT (Data, Variable, Relative) ;3 bytes (X,Y,Wheel)
+    // ------------------------------------------------- Horizontal wheel
+    USAGE_PAGE(1), 0x0c,       //     USAGE PAGE (Consumer Devices)
+    USAGE(2), 0x38, 0x02,      //     USAGE (AC Pan)
+    LOGICAL_MINIMUM(1), 0x81,  //     LOGICAL_MINIMUM (-127)
+    LOGICAL_MAXIMUM(1), 0x7f,  //     LOGICAL_MAXIMUM (127)
+    REPORT_SIZE(1), 0x08,      //     REPORT_SIZE (8)
+    REPORT_COUNT(1), 0x01,     //     REPORT_COUNT (1)
+    HIDINPUT(1), 0x06,         //     INPUT (Data, Var, Rel)
+    END_COLLECTION(0),         //   END_COLLECTION
+    END_COLLECTION(0)          // END_COLLECTION
+  };
+
+  NimBLEDevice::init(btName.c_str());
+
+  NimBLEServer *pServer = NimBLEDevice::createServer();
+  pServer->setCallbacks(new ServerCallbacks());
+
+  NimBLEService *hidService = pServer->createService("1812"); // HID Service
+
+  NimBLECharacteristic *reportMap =
+      hidService->createCharacteristic("2A4B", NIMBLE_PROPERTY::READ);
+  reportMap->setValue(hrd, sizeof(hrd));
+
+  inputReport = hidService->createCharacteristic(
+      "2A4D", NIMBLE_PROPERTY::READ | NIMBLE_PROPERTY::NOTIFY);
+  hidService->start();
+
+  NimBLEAdvertising *advertising = NimBLEDevice::getAdvertising();
+  advertising->setAppearance(0x03C2); // HID Mouse
+  advertising->addServiceUUID(hidService->getUUID());
+  advertising->start();
+
   bool running = true;
   bool enableMove = false;
   unsigned long lps = millis();
   waitIDLE = millis();
   screenWait = false;
   screenOff = false;
+
   while (running) {
     updateInput();
     mpu.update();
-    int mvx = constrain(-mpu.getGyroZ() / 5, -10, 10);
-    int mvy = constrain(mpu.getGyroX()  / 5, -10, 10);
+    int mvx = constrain(-mpu.getGyroZ() / 2, -10, 10);
+    int mvy = constrain(mpu.getGyroX()  / 2, -10, 10);
     int button = getButton();
+    uint8_t brp = 0;
     int scroll = 0;
-    if (nowPress[0]) m.press(MOUSE_LEFT); else m.release(MOUSE_LEFT);
-    if (nowPress[1]) m.press(MOUSE_MIDDLE); else m.release(MOUSE_MIDDLE);
-    if (nowPress[2]) m.press(MOUSE_RIGHT); else m.release(MOUSE_RIGHT);
+    if (nowPress[0]) brp = brp | 1;
+    if (nowPress[1]) brp = brp | 4;
+    if (nowPress[2]) brp = brp | 2;
     if (nowPress[3]) scroll = 1; // Up
     else if (nowPress[4]) scroll = -1; // Down
-    if (enableMove) m.move(mvx, mvy, scroll);
-    else if (scroll != 0) m.move(0, 0, scroll);
+    uint8_t report[5] = {brp, mvx, mvy, scroll, 0};
+    inputReport->setValue(report, sizeof(report));
+    inputReport->notify();
+    if (enableMove) {
+      inputReport->setValue(report, sizeof(report));
+      inputReport->notify();
+    }
+    else if (scroll != 0) {
+      inputReport->setValue(report, sizeof(report));
+      inputReport->notify();
+    }
     if (button == 2) {
       if (millis() - pressTime[2] < 1000)
         enableMove = (screenOff || screenWait) ? enableMove : !enableMove;
@@ -1209,7 +1460,7 @@ void marm() {
       u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 48, tmp.c_str());
       tmp = "gx:" + String((int)mpu.getGyroX()) + ", gz:" + String((int)mpu.getGyroZ());
       u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 12, tmp.c_str());
-      if (!m.isConnected()) {
+      if (!deviceConnected) {
         u8g2.drawStr((128 - u8g2.getStrWidth("Not Connected"))/2, 36, "Not Connected");
         l.fill(l.Color(255, 120, 0));
       } else if (!enableMove) {
@@ -1237,15 +1488,14 @@ void marm() {
         l.show();
       }
     }
-    if (millis() - lps < 32) delay(millis() - lps);
-    else lps = millis();
+    if (millis() - lps < 8) delay(millis() - lps);
+    lps = millis();
   }
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   u8g2.drawStr(64 - u8g2.getStrWidth("Exiting...") / 2, 32, "Exiting...");
   u8g2.sendBuffer();
-  m.end();
-  BLEDevice::deinit(true);
+  NimBLEDevice::deinit(true);
   delay(1000);
   l.setBrightness(0);
   l.show();
@@ -1641,6 +1891,7 @@ void connectMenu() {
       if (BLEfunction == 0) mwk();
       else if (BLEfunction == 1) marm();
       else if (BLEfunction == 2) mgp();
+      u8g2.setPowerSave(0);
     }
     if (sel == 3) {
       wifiMenu();
@@ -1721,7 +1972,7 @@ void displaySetting() {
     String menuItem =
     "Brightness: " + String(screenBri) + "\n"
     + "Screen on: " + String(screenSaveDuration / 1000) + "s\n"
-    + "Screen save: " + String((screenOffDuration - screenSaveDuration) / 1000) + "s\n";
+    + "Screen save: " + String((screenOffDuration) / 1000) + "s\n";
     if (logoType == 0 || logoType == 12)
       menuItem += "Icon: \"" + screenLogo + "\"";
     else
@@ -1900,7 +2151,7 @@ void mpuMenu() {
 void showDebug() {
   bool running = true;
   int page = 0;
-  const int pages = 4;
+  const int pages = 5;
   u8g2.setFont(u8g2_font_5x8_mf);
   while (running) {
     u8g2.clearBuffer();
@@ -1960,6 +2211,20 @@ void showDebug() {
         u8g2.drawStr(0, 50, "tmp:"); u8g2.drawStr(30, 50, String(mpu.getTemp()).c_str());
         break;
       }
+      case 4: { // Debug FS
+        size_t total = LittleFS.totalBytes();
+        size_t used  = LittleFS.usedBytes();
+        String tmp = "FS total:" + String(total) + "b";
+        u8g2.drawStr(0, 10, tmp.c_str());
+        tmp = "FS used :" + String(used) + "b";
+        u8g2.drawStr(0, 20, tmp.c_str());
+        tmp = "FS free :" + String(total - used) + "b";
+        u8g2.drawStr(0, 30, tmp.c_str());
+        // nếu muốn hiện % dùng
+        tmp = "FS %   :" + String((used * 100) / total) + "%";
+        u8g2.drawStr(0, 40, tmp.c_str());
+        break;
+      }
       default: break;
     }
     u8g2.sendBuffer();
@@ -1967,7 +2232,7 @@ void showDebug() {
 }
 
 void deadCalib() {
-  const char menuItems[] = 
+  const char menuItems[] =
     "Auto Calibrate\n"
     "Manual Set"
   ;
@@ -2031,11 +2296,146 @@ void deadCalib() {
   );
 }
 
+std::vector<String> listProfiles() {
+  std::vector<String> prfList;
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return prfList;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    String fname = file.name();
+    if (fname.endsWith(".json")) {
+      prfList.push_back(fname);
+    }
+    file = root.openNextFile();
+  }
+  return prfList;
+}
+
+void profileMenu() {
+  const char menuItems[] = 
+    "Load Profile\n"
+    "Save Profile\n"
+    "Delete Profile"
+  ;
+  int sel = 1;
+  while (sel != 0) {
+    sel = u8g2.userInterfaceSelectionList("Profiles", sel, menuItems);
+    if (sel == 1) {
+      std::vector<String> profiles = listProfiles();
+      int profilesCount = profiles.size();
+      if (profilesCount) {
+        String subSel = "";
+        for (int i = 0; i < profilesCount; i++) {
+          subSel += profiles[i];
+          if (i < profilesCount) subSel += "\n";
+        }
+        int choose = u8g2.userInterfaceSelectionList("Load Profile", 0, subSel.c_str());
+        if (choose != 0) {
+          String prfName = "/" + profiles[choose - 1];
+          if (loadConfig(prfName.c_str())) {
+            u8g2.userInterfaceMessage("Profile loaded!", prfName.c_str(), "", " Ok ");
+          } else {
+            u8g2.userInterfaceMessage("Failed to load", prfName.c_str(), "go back and try again", " Ok ");
+          }
+        }
+      } else {
+        u8g2.userInterfaceMessage("Sorry but you haven't", "save any profile yet", "go back and save a profile", " Ok ");
+      }
+    }
+
+    if (sel == 2) {
+      String prfName = "New Profile";
+      int opt = 1;
+      while (opt != 0) {
+        opt = u8g2.userInterfaceMessage(
+          "",
+          "Save Profile",
+          prfName.c_str(),
+          " Change Name \n Save "
+        );
+        if (opt == 1) prfName = keyboard(prfName);
+        if (opt == 2) {
+          // remove characters not allowed in filenames
+          prfName.replace("/", "-");
+          prfName.replace("\\", "-");
+          prfName.replace(":", "-");
+          prfName.replace("*", "-");
+          prfName.replace("?", "-");
+          prfName.replace("\"", "-");
+          prfName.replace("<", "-");
+          prfName.replace(">", "-");
+          prfName.replace("|", "-");
+          prfName.trim();
+          if (prfName.length() == 0) {
+            u8g2.clearBuffer();
+            u8g2.drawStr((128 - u8g2.getStrWidth("Invalid name!"))/2, 32, "Invalid name!");
+            u8g2.sendBuffer();
+            delay(1000);
+          }
+          else {
+            if (!prfName.endsWith(".json")) prfName += ".json";
+            prfName = "/" + prfName;
+            if (saveConfig(prfName.c_str())) {
+              u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
+              opt = 0;
+            } else {
+              u8g2.userInterfaceMessage("Failed to save", prfName.c_str(), "go back and try again", " Ok ");
+            }
+          }
+        }
+      }
+    }
+
+    if (sel == 3) {
+      std::vector<String> profiles = listProfiles();
+      int profilesCount = profiles.size();
+      if (profilesCount) {
+        String subSel = "";
+        for (int i = 0; i < profilesCount; i++) {
+          subSel += profiles[i];
+          if (i < profilesCount) subSel += "\n";
+        }
+        int choose = u8g2.userInterfaceSelectionList("Delete Profile", 0, subSel.c_str());
+        if (choose != 0) {
+          String prfName = "/" + profiles[choose - 1];
+          int confirm = u8g2.userInterfaceMessage(
+            "Are you sure to delete",
+            prfName.c_str(),
+            "action cannot be undone",
+            " Yes \n No "
+          );
+          if (confirm == 1) {
+            if (LittleFS.remove(prfName.c_str())) {
+              u8g2.userInterfaceMessage("Profile deleted!", prfName.c_str(), "", " Ok ");
+            } else {
+              u8g2.userInterfaceMessage("Failed to delete", prfName.c_str(), "go back and try again", " Ok ");
+            }
+          }
+        }
+      } else {
+        u8g2.userInterfaceMessage("Sorry but you haven't", "save any profile yet", "go back and save a profile", " Ok ");
+      }
+    }
+
+  }
+  l.setBrightness(0);
+  l.show();
+}
+
 void otherMenu() {
   int sel = 1;
   const char menuItems[] =
     "Display\n"
     "Deadzone Calirate\n"
+    "Profiles\n"
     "MPU\n"
     "Web App\n"
     "Debug"
@@ -2045,9 +2445,10 @@ void otherMenu() {
     sel = u8g2.userInterfaceSelectionList("Other", sel, menuItems);
     switch (sel) {
       case 1: displaySetting(); break;
-      case 3: mpuMenu(); break;
-      case 5: showDebug(); break;
       case 2: deadCalib(); break;
+      case 3: profileMenu(); break;
+      case 4: mpuMenu(); break;
+      case 6: showDebug(); break;
       default: break;
     }
   }
@@ -2208,12 +2609,20 @@ void setup() {
     ledcAttachPin(ledPins[i], i);
     ledcWrite(i, 0);
   }
-
   l.fill(l.Color(0, 255, 0));
   l.setBrightness(0);
   l.show();
+
+  // File System
+  if (!LittleFS.begin(true)) {   // true = format nếu mount fail
+    l.fill(l.Color(255, 0, 0));
+    l.setBrightness(255);
+    l.show();
+    u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
+    return;
+  }
+  dev.begin();
   waitIDLE = millis();
-  if (digitalRead(btnPins[3])) dev.begin();
 }
 
 void loop() {
