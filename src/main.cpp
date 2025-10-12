@@ -26,6 +26,7 @@
 #include "keyName.h"
 #include "img.h"
 
+const String ver = "v1.9.4";
 
 // External
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_GRB + NEO_KHZ800);
@@ -2467,6 +2468,41 @@ void profileMenu() {
   l.show();
 }
 
+void firstTimeSetup() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_fub20_tf);
+  for (int i = 0; i < 41; i++) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, i, "Mufuki");
+    u8g2.sendBuffer();
+    delay(40);
+  }
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr((128 - u8g2.getStrWidth("NoID"))/2, 54, "NoID");
+  u8g2.sendBuffer();
+  delay(500);
+  u8g2.setDrawColor(0);
+  u8g2.drawBox(0, 42, 128, 22);
+  u8g2.setDrawColor(1);
+  u8g2.drawStr((128 - u8g2.getStrWidth(("NoID - " + ver).c_str()))/2, 54, ("NoID - " + ver).c_str());
+  u8g2.sendBuffer();
+  delay(500);
+  u8g2.setDrawColor(2);
+  u8g2.setFont(u8g2_font_tenthinguys_tf);
+  u8g2.clearBuffer();
+  u8g2.drawStr(4, 12, "Wellcome");
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr(4, 25, "Start the journey with");
+  u8g2.drawStr(4, 37, "Mufuki now!");
+  u8g2.drawButtonUTF8(128 - u8g2.getStrWidth(" Start>> ") - 4, 64 - u8g2.getMaxCharHeight(), U8G2_BTN_INV, 0,  2,  2, " Start>> ");
+  u8g2.sendBuffer();
+  bool waiting = true;
+  while (waiting) {
+    if (getButton() > 0) waiting = false;
+    delay(10);
+  }
+}
+
 void otherMenu() {
   int sel = 1;
   const char menuItems[] =
@@ -2485,6 +2521,7 @@ void otherMenu() {
       case 2: deadCalib(); break;
       case 3: profileMenu(); break;
       case 4: mpuMenu(); break;
+      case 5: firstTimeSetup(); break;
       case 6: showDebug(); break;
       default: break;
     }
@@ -2516,7 +2553,7 @@ void about() {
     u8g2.setFont(u8g2_font_fub20_tf);
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    u8g2.drawStr((128 - u8g2.getStrWidth("v1.8.2"))/2, 76 - i, "v1.8.2");
+    u8g2.drawStr((128 - u8g2.getStrWidth(ver.c_str()))/2, 76 - i, ver.c_str());
     u8g2.sendBuffer();
     delay(20);
   }
@@ -2542,8 +2579,6 @@ void about() {
   l.setBrightness(0);
   l.show();
 }
-
-void firstTimeSetup() {}
 
 void mainMenu() {
   const char menu_items[] =
