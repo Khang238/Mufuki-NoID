@@ -124,7 +124,7 @@ bool saveConfig(const char *path = "/default.json") {
   File file = LittleFS.open(path, "w");
   if (!file) return false;
 
-  DynamicJsonDocument doc(1024); // dùng DynamicJsonDocument thay vì StaticJsonDocument
+  DynamicJsonDocument doc(1024);
 
   // array
   doc["cX"][0] = calMax[0];
@@ -263,6 +263,39 @@ bool loadConfig(const char *path = "/default.json") {
     if (data) screenLogo = String(data);
   }
 
+  return true;
+}
+
+String configPath = "/default.json";
+bool systemReset = false;
+bool sysSave() {
+  File file = LittleFS.open("/sys.cfg", "w");
+  if (!file) return false;
+  DynamicJsonDocument doc(64);
+  doc["cp"] = configPath;
+  doc["sr"] = systemReset;
+  if (serializeJsonPretty(doc, file) == 0) {
+    file.close();
+    return false;
+  }
+  file.close();
+  return true;
+}
+
+bool sysLoad() {
+  File file = LittleFS.open("/sys.cfg", "r");
+  if (!file) return false;
+  DynamicJsonDocument doc(64);
+  DeserializationError error = deserializeJson(doc, file);
+  file.close();
+  if (error) {
+    return false;
+  }
+  if (doc["cp"].is<const char*>()) {
+    const char* data = doc["cp"].as<const char*>();
+    if (data) configPath = String(data);
+  }
+  if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }
 
@@ -1150,7 +1183,9 @@ void setupMorse() {
 bool morseMode = true;
 String keyboard(String text) {
   String prevText = text;
+  bool lastFilterState = doFilter;
   if (morseMode) {
+    doFilter = false; // can be annoying
     bool capsLock = false;
     setupMorse();
     bool typing = true;
@@ -1212,12 +1247,13 @@ String keyboard(String text) {
       if (currentCode != "") u8g2.drawStr(64 - u8g2.getStrWidth(tmpStr.c_str()) / 2, 32, tmpStr.c_str());
       else u8g2.drawStr(64 - u8g2.getStrWidth("[none]") / 2, 32, "[none]");
       u8g2.drawStr(0, 40, String((String)"Text: " + (capsLock ? "[C]" : "")).c_str());
-      drawWrappedText(u8g2, 0, 50, 128, (((millis() - lastInputTime) % 500 < 250) ? text : text + "_").c_str());
+      drawWrappedText(u8g2, 0, 50, 128, (((millis() - lastInputTime + 251) % 500 < 250) ? text : text + "_").c_str());
       u8g2.sendBuffer();
     }
   }
-  return text;
+  doFilter = lastFilterState;
   root = {'\0', nullptr, nullptr}; // destroy the tree to save memory
+  return text;
 }
 
 void mgp() {
@@ -2316,6 +2352,7 @@ std::vector<String> listProfiles() {
     }
     file = root.openNextFile();
   }
+  file.close();
   return prfList;
 }
 
@@ -2335,7 +2372,7 @@ void profileMenu() {
         String subSel = "";
         for (int i = 0; i < profilesCount; i++) {
           subSel += profiles[i];
-          if (i < profilesCount) subSel += "\n";
+          if (i < profilesCount - 1) subSel += "\n";
         }
         int choose = u8g2.userInterfaceSelectionList("Load Profile", 0, subSel.c_str());
         if (choose != 0) {
@@ -2359,7 +2396,7 @@ void profileMenu() {
           "",
           "Save Profile",
           prfName.c_str(),
-          " Change Name \n Save "
+          " ch.Name \n Save "
         );
         if (opt == 1) prfName = keyboard(prfName);
         if (opt == 2) {
@@ -2505,6 +2542,8 @@ void about() {
   l.setBrightness(0);
   l.show();
 }
+
+void firstTimeSetup() {}
 
 void mainMenu() {
   const char menu_items[] =
