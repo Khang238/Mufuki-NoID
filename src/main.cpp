@@ -498,7 +498,7 @@ void otaUpdate() {
       u8g2.setFont(u8g2_font_fub20_tf);
       u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
       u8g2.setFont(u8g2_font_gulim11_t_korean1);
-      u8g2.drawStr((128 - u8g2.getStrWidth("Please Restart!"))/2, 54, "Please Restart!");
+      u8g2.drawStr((128 - u8g2.getStrWidth("Restarting..."))/2, 54, "Restarting...");
       u8g2.sendBuffer();
       l.fill(l.Color(255, 255, 255));
       l.show();
@@ -1006,6 +1006,7 @@ void udgSoild() {
 void effectMenu() {
   int sel = 1;
   while (sel != 0) {
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
     String menu_items =
       "Under Glow " + String(underGlow ? "[On]" : "[Off]") + "\n"
       + "RGB Led " + String(rgb ? "[On]" : "[Off]");
@@ -1719,6 +1720,7 @@ void wifiConnectScreen() { // separate function to save flash
 }
 
 void wifiMenu() {
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
   int subSel = 1;
   int wifiCount = -1;
   while (subSel != 0) {
@@ -2257,7 +2259,6 @@ void showDebug() {
         u8g2.drawStr(0, 20, tmp.c_str());
         tmp = "FS free :" + String(total - used) + "b";
         u8g2.drawStr(0, 30, tmp.c_str());
-        // nếu muốn hiện % dùng
         tmp = "FS %   :" + String((used * 100) / total) + "%";
         u8g2.drawStr(0, 40, tmp.c_str());
         break;
@@ -2359,6 +2360,7 @@ std::vector<String> listProfiles() {
 
 void profileMenu() {
   const char menuItems[] = 
+    "Default Profile\n"
     "Load Profile\n"
     "Save Profile\n"
     "Delete Profile"
@@ -2366,7 +2368,32 @@ void profileMenu() {
   int sel = 1;
   while (sel != 0) {
     sel = u8g2.userInterfaceSelectionList("Profiles", sel, menuItems);
+    
     if (sel == 1) {
+      std::vector<String> profiles = listProfiles();
+      int profilesCount = profiles.size();
+      if (profilesCount) {
+        String subSel = "";
+        for (int i = 0; i < profilesCount; i++) {
+          subSel += profiles[i];
+          if (i < profilesCount - 1) subSel += "\n";
+        }
+        int choose = u8g2.userInterfaceSelectionList("Set Default", 0, subSel.c_str());
+        if (choose != 0) {
+          String prfName = "/" + profiles[choose - 1];
+          configPath = prfName;
+          if (loadConfig(prfName.c_str()) && sysSave()) {
+            u8g2.userInterfaceMessage("Changed default to", prfName.c_str(), "", " Ok ");
+          } else {
+            u8g2.userInterfaceMessage("Failed to set", prfName.c_str(), "go back and try again", " Ok ");
+          }
+        }
+      } else {
+        u8g2.userInterfaceMessage("Sorry but you haven't", "save any profile yet", "go back and save a profile", " Ok ");
+      }
+    }
+
+    if (sel == 2) {
       std::vector<String> profiles = listProfiles();
       int profilesCount = profiles.size();
       if (profilesCount) {
@@ -2389,7 +2416,7 @@ void profileMenu() {
       }
     }
 
-    if (sel == 2) {
+    if (sel == 3) {
       String prfName = "New Profile";
       int opt = 1;
       while (opt != 0) {
@@ -2432,14 +2459,14 @@ void profileMenu() {
       }
     }
 
-    if (sel == 3) {
+    if (sel == 4) {
       std::vector<String> profiles = listProfiles();
       int profilesCount = profiles.size();
       if (profilesCount) {
         String subSel = "";
         for (int i = 0; i < profilesCount; i++) {
           subSel += profiles[i];
-          if (i < profilesCount) subSel += "\n";
+          if (i < profilesCount - 1) subSel += "\n";
         }
         int choose = u8g2.userInterfaceSelectionList("Delete Profile", 0, subSel.c_str());
         if (choose != 0) {
@@ -2468,6 +2495,29 @@ void profileMenu() {
   l.show();
 }
 
+void waitAction(bool state) {
+  bool waitK = state;
+  while (getButton() > 0) delay(10);
+  while (waitK) {
+    waitK = getButton() == -1;
+    delay(10);
+  }
+  while (getButton() > 0) delay(10);
+}
+
+void splScreen(const char* title, const char* t1, const char* t2, const char* btn = "btn", bool dobtn = true, bool waitKey = true) {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_tenthinguys_tf);
+  u8g2.drawStr(0, 12, title);
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr(0, 25, t1);
+  u8g2.drawStr(0, 37, t2);
+  if (dobtn)
+    u8g2.drawButtonUTF8(120 - u8g2.getStrWidth(btn), 64 - u8g2.getMaxCharHeight(), U8G2_BTN_INV, 0,  2,  2, btn);
+  u8g2.sendBuffer();
+  waitAction(waitKey);
+}
+
 void firstTimeSetup() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_fub20_tf);
@@ -2475,7 +2525,7 @@ void firstTimeSetup() {
     u8g2.clearBuffer();
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, i, "Mufuki");
     u8g2.sendBuffer();
-    delay(40);
+    //delay(8);
   }
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   u8g2.drawStr((128 - u8g2.getStrWidth("NoID"))/2, 54, "NoID");
@@ -2486,28 +2536,104 @@ void firstTimeSetup() {
   u8g2.setDrawColor(1);
   u8g2.drawStr((128 - u8g2.getStrWidth(("NoID - " + ver).c_str()))/2, 54, ("NoID - " + ver).c_str());
   u8g2.sendBuffer();
-  delay(500);
-  u8g2.setDrawColor(2);
-  u8g2.setFont(u8g2_font_tenthinguys_tf);
-  u8g2.clearBuffer();
-  u8g2.drawStr(4, 12, "Wellcome");
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
-  u8g2.drawStr(4, 25, "Start the journey with");
-  u8g2.drawStr(4, 37, "Mufuki now!");
-  u8g2.drawButtonUTF8(128 - u8g2.getStrWidth(" Start>> ") - 4, 64 - u8g2.getMaxCharHeight(), U8G2_BTN_INV, 0,  2,  2, " Start>> ");
+  delay(1000);
+  splScreen("Wellcome!", "Mufuki Setup", (ver + " - NoID").c_str(),  " Start>> ");
+  splScreen("Buttons", "Side buttons", "F1 to F4 ---->", " Next ");
+  splScreen("Buttons", "F1: Up     F2: OK", "F3: Down  F4:Back", " Next ");
+  splScreen("Switches", "SW1 to SW3", "with hall sensors", " Next ");
+  splScreen("Switches", "Calibrate?", "", "", false, false);
+  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.drawStr(0, 56, "F1: OK");
+  u8g2.drawStr(0, 64, "F2: Skip");
   u8g2.sendBuffer();
-  bool waiting = true;
-  while (waiting) {
-    if (getButton() > 0) waiting = false;
+  int btn = -1;
+  while (btn != 1) {
+    btn = getButton();
+    if (btn == 0) {
+      calibMenu();
+      btn = 1;
+    }
     delay(10);
   }
+  splScreen("Switches", "Use recommended", "settings and done?", "", false, false);
+  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.drawStr(0, 56, "F1: OK");
+  u8g2.drawStr(0, 64, "F2: Continue");
+  u8g2.sendBuffer();
+  btn = -1;
+  while (btn != 1) {
+    btn = getButton();
+    if (btn == 0) {
+      doFilter = true;
+      filterType = 1;
+      inputHandler = 2;
+      windowSize = 0.25;
+      rgb = true;
+      color[0] = 255; 
+      color[1] = 1;
+      color[2] = 224;
+      saveConfig(configPath.c_str());
+      sysSave();
+      splScreen("Setup Done!", "You can hold F4", "to enter menu", " Finish ");
+      return;
+      btn = 1;
+    }
+    delay(10);
+  }
+  splScreen("Input Handler", "Now: Digital Emulation", "Actuation: 0.3", "", false, false);
+  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.drawStr(0, 56, "F1: Change");
+  u8g2.drawStr(0, 64, "F2: Skip");
+  u8g2.sendBuffer();
+  btn = -1;
+  while (btn != 1) {
+    btn = getButton();
+    if (btn == 0) {
+      inputMenu();
+      btn = 1;
+    }
+    delay(10);
+  }
+  splScreen("Noise Filter", "Help stabilize input", "Now: Off", "", false, false);
+  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.drawStr(0, 56, "F1: Change");
+  u8g2.drawStr(0, 64, "F2: Skip");
+  u8g2.sendBuffer();
+  btn = -1;
+  while (btn != 1) {
+    btn = getButton();
+    if (btn == 0) {
+      filtMenu();
+      btn = 1;
+    }
+    delay(10);
+  }
+  splScreen("Effects", "To show off ig?", "Now: All Off", "", false, false);
+  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.drawStr(0, 56, "F1: Change");
+  u8g2.drawStr(0, 64, "F2: Skip");
+  u8g2.sendBuffer();
+  btn = -1;
+  while (btn != 1) {
+    btn = getButton();
+    if (btn == 0) {
+      effectMenu();
+      btn = 1;
+    }
+    delay(10);
+  }
+  saveConfig(configPath.c_str());
+  sysSave();
+  splScreen("Setup Complete!", "Your device are", "ready to use", " Next ");
+  splScreen("Setup Complete!", "Web app also", "available in menu", " Next ");
+  splScreen("Setup Done!", "You can hold F4", "to enter menu");
 }
 
 void otherMenu() {
   int sel = 1;
   const char menuItems[] =
     "Display\n"
-    "Deadzone Calirate\n"
+    "Deadzone Calibrate\n"
     "Profiles\n"
     "MPU\n"
     "Web App\n"
@@ -2557,6 +2683,11 @@ void about() {
     u8g2.sendBuffer();
     delay(20);
   }
+  u8g2.setDrawColor(0);
+  u8g2.drawBox(0, 52, 128, 12);
+  u8g2.setDrawColor(1);
+  u8g2.drawStr((128 - u8g2.getStrWidth((ver + " - by NoID").c_str()))/2, 54, (ver + " - by NoID").c_str());
+  u8g2.sendBuffer();
   uint16_t h = 0;
   while (running) {
     updateInput();
@@ -2688,15 +2819,29 @@ void setup() {
   l.show();
 
   // File System
-  if (!LittleFS.begin(true)) {   // true = format nếu mount fail
+  if (!LittleFS.begin(true)) {
     l.fill(l.Color(255, 0, 0));
     l.setBrightness(255);
     l.show();
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
     return;
   }
+  if (!sysLoad()) {
+    firstTimeSetup(); // definitely first time
+  }
+  if (!loadConfig(configPath.c_str())) {
+    saveConfig(configPath.c_str()); // fallback to default
+  }
   dev.begin();
   waitIDLE = millis();
+    if (rgb) {
+    l.setBrightness(rgbBri);
+    l.fill(l.Color(color[0], color[1], color[2]));
+    l.show();
+  } else {
+    l.setBrightness(0);
+    l.show();
+  }
 }
 
 void loop() {
