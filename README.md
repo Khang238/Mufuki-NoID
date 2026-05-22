@@ -15,16 +15,15 @@ Also, for some reason my esp32 cant connect to wifi, so i might have to leave we
 - Macro support
 
 ## Wiring diagram (you can change it btw)
-+--------------+------------------------------+
+
 | S3 Mini Pin  | Component                    |
-+--------------+------------------------------+
+|--------------|------------------------------|
 | 48           | Build-in ws2182b             |
 | 7            | Underglow led (ws2812b mode) |
 | 1, 2, 3      | Analog input                 |
 | 7, 6, 5      | Underglow led (analog mode)  |
 | 5, 6, 12, 13 | F1, F2, F3, F4 buttons       |
 | 8, 9         | I2C OLED display/MPU6050     |
-+--------------+------------------------------+
 
 ###### User manual can be found [here](https://youtu.be/dQw4w9WgXcQ?si=5hyU3H2vomW0COuk)
 
