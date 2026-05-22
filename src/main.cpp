@@ -30,6 +30,9 @@ const String ver = "v1.9.4";
 
 // External
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel b = Adafruit_NeoPixel(3,  7, NEO_GRB + NEO_KHZ800);
+const bool analogLed = false;
+
 HIDkeyboard dev;
 MPU6050 mpu(Wire);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -40,7 +43,7 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 // Hardware pins, change if needed
 const int adcPins[3] = {1, 2, 3};        // Hall switch
 const int ledPins[3] = {7, 6, 5};        // LED output
-const int btnPins[4] = {11, 10, 12, 13}; // Buttons
+const int btnPins[4] = {5, 6, 12, 13}; // Buttons
 
 // Analog
 int deadZone = 32;
@@ -660,6 +663,24 @@ void updateInput() {
   }
 }
 
+void underGlowUpdate() {
+  if (!underGlow) return;
+  if (analogLed) for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
+  else {
+    for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((color[0] * ledOutput[i] * rgbBri) / (255 * maxBri), (color[1] * ledOutput[i] * rgbBri) / (255 * maxBri), (color[2] * ledOutput[i] * rgbBri) / (255 * maxBri)));
+    b.show();
+  }
+}
+
+void setUnderGlowPixel(int idx, uint8_t red, uint8_t green, uint8_t blue, uint8_t bri) {
+  if (analogLed) {
+    if (idx < 3) ledOutput[idx] = (color[idx] * bri * rgbBri) / (255 * maxBri);
+  } else {
+    if (idx < 3) b.setPixelColor(idx, b.Color((color[0] * bri * rgbBri) / (255 * maxBri), (color[1] * bri * rgbBri) / (255 * maxBri), (color[2] * bri * rgbBri) / (255 * maxBri)));
+    b.show();
+  }
+}
+
 void screenSaver(const char* title) {
   u8g2.clearBuffer();
   if (logoType > 1 && logoType < 12) {
@@ -684,7 +705,8 @@ void calibMenu() {
   bool running = true;
   bool calib = false;
   int nowCal = 0;
-  ledcWrite(0, 2);
+  if (analogLed) ledcWrite(0, 2);
+  else {b.setPixelColor(0, b.Color(255, 255, 255)); b.show();}
   for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
   while (running) {
     updateInput();
@@ -722,9 +744,11 @@ void calibMenu() {
         graphData[i] = {0};
       for (int i = 0; i < 3; i++) {
         if (i == nowCal)
-          ledcWrite(i, 2);
+          if (analogLed) ledcWrite(i, 2);
+          else b.setPixelColor(i, b.Color(255, 255, 255));
         else
-          ledcWrite(i, 0);
+          if (analogLed) ledcWrite(i, 0);
+          else b.setPixelColor(i, b.Color(0, 0, 0));
       }
       if (calib) {
         calMin[nowCal] = 4095;
@@ -764,10 +788,13 @@ void calibMenu() {
         default: break;
       }
     u8g2.sendBuffer();
+    if (!analogLed) b.show();
   }
   for (int i = 0; i < 3; i++) {
-    ledcWrite(i, 0);
+    if (analogLed) ledcWrite(i, 0);
+    else b.setPixelColor(i, b.Color(0, 0, 0));
   }
+  if (!analogLed) b.show();
 }
 
 void inputMenu() {
@@ -961,9 +988,9 @@ void udgSmooth() {
   lastUpdate = millis();
   for (int i = 0; i < 3; i++) {
     smtLed[i] += ((nowPress[i] ? 1.00 : 0.00) - smtLed[i]) * 0.32;
-    int tmpOutput = (int)(smtLed[i] * maxBri);
-    ledcWrite(i, tmpOutput);
+    ledOutput[i] = (int)(smtLed[i] * maxBri);
   }
+  underGlowUpdate();
 }
 
 float burnLevel[] = {0.00, 0.00, 0.00};
@@ -984,23 +1011,23 @@ void udgBurnIn() {
       burnLevel[i] = constrain(burnLevel[i] - 0.001, 0.00, 1.00);
     }
     smtLed[i] += ((nowPress[i] ? 1.00 : 0.00) - smtLed[i]) * 0.32;
-    int tmpOutput = (int)(burnLevel[i] * 255 > smtLed[i] * maxBri ? burnLevel[i] * 255 : smtLed[i] * maxBri); // BURN YOUR EYES
-    ledcWrite(i, tmpOutput);
+    ledOutput[i] = (int)(burnLevel[i] * 255 > smtLed[i] * maxBri ? burnLevel[i] * 255 : smtLed[i] * maxBri); // BURN YOUR EYES
   }
+  underGlowUpdate();
 }
 
 void udgAnalog() {
   for (int i = 0; i < 3; i++) {
-    int tmpOutput = (int)(hallVal[i] * maxBri);
-    ledcWrite(i, tmpOutput);
+    ledOutput[i] = (int)(hallVal[i] * maxBri);
   }
+  underGlowUpdate();
 }
 
 void udgSoild() {
   for (int i = 0; i < 3; i++) {
-    int tmpOutput = nowPress[i] ? maxBri : 0;
-    ledcWrite(i, tmpOutput);
+    ledOutput[i] = nowPress[i] ? maxBri : 0;
   }
+  underGlowUpdate();
 }
 
 void effectMenu() {
@@ -1764,7 +1791,17 @@ void wifiMenu() {
         u8g2.setFont(u8g2_font_gulim11_t_korean1);
         u8g2.drawStr((128 - u8g2.getStrWidth("Searching..."))/2, 54, "Searching...");
         u8g2.sendBuffer();
+        unsigned long scanStart = millis();
         wifiCount = WiFi.scanNetworks();
+        if (millis() - scanStart < 1000) { // something went wrong with the scan so we have to reset the wifi (happens when the esp32 is in a weird state, not sure why)
+          WiFi.mode(WIFI_OFF);
+          delay(100);
+          WiFi.mode(WIFI_STA);
+          delay(100);
+          unsigned long refreshStart = millis();
+          wifiCount = WiFi.scanNetworks();
+          if (millis() - refreshStart < 1000) wifiCount = 0; // if it still fails, just show no networks
+        }
         if (wifiCount == 0) {
           u8g2.userInterfaceMessage("No Networks", "Found!", "", " Ok ");
         }
@@ -2700,7 +2737,7 @@ void about() {
       }
     }
     updateSingleFade();
-    for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
+    underGlowUpdate();
     h += 256;
     l.rainbow(h, 1, 255, rgbBri, true);
     l.show();
@@ -2710,6 +2747,23 @@ void about() {
   l.setBrightness(0);
   l.show();
 }
+
+void importantDebug() {// use in case i messed up the wiring and need to quickly check something without going through the menu
+  while (true) {
+    updateInput();
+    u8g2.clearBuffer();
+    // draw 4 buttons
+    for (int i = 0; i < 4; i++) {
+      if (digitalRead(btnPins[i]) == LOW) {
+        u8g2.drawStr(0, 10 + i * 10, ("Btn " + String(i) + " pressed").c_str());
+      } else {
+        u8g2.drawStr(0, 10 + i * 10, ("Btn " + String(i) + " released").c_str());
+      }
+    }
+    u8g2.sendBuffer();
+    delay(100);
+  }
+} 
 
 void mainMenu() {
   const char menu_items[] =
@@ -2722,7 +2776,12 @@ void mainMenu() {
     "OTA Update\n"
     "About";
 
-  for (int i = 0; i < 3; i++) ledcWrite(i, 0);
+  if (analogLed) {
+    for (int i = 0; i < 3; i++) ledcWrite(i, 0);
+  } else {
+    b.fill(b.Color(0, 0, 0));
+    b.show();
+  }
   l.setBrightness(0);
   l.show();
   u8g2.clearBuffer();
@@ -2784,9 +2843,12 @@ void setup() {
   // Wireless
   BLEDevice::deinit(true);
   WiFi.mode(WIFI_OFF);
+  // WiFi.begin("Vi MUNG"); // if this fail i might fucked up
 
   // Hardware setup
   l.begin();
+  b.begin();
+  b.setBrightness(maxBri);
   l.fill(l.Color(255, 0, 0));
   l.show();
   Wire.begin(8, 9);
@@ -2795,6 +2857,7 @@ void setup() {
   u8g2.setFontMode(1);
   u8g2.enableUTF8Print();
   u8g2.setFontRefHeightAll();
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
   l.fill(l.Color(255, 255, 0));
   l.show();
   byte status = mpu.begin();
@@ -2805,14 +2868,16 @@ void setup() {
 
   // PinMode
   for (int i = 0; i < 3; i++) pinMode(adcPins[i], INPUT);
-  for (int i = 0; i < 3; i++) pinMode(ledPins[i], OUTPUT);
+  if (analogLed) for (int i = 0; i < 3; i++) pinMode(ledPins[i], OUTPUT);
   for (int i = 0; i < 4; i++) pinMode(btnPins[i], INPUT_PULLUP);
 
   // LEDs
-  for (int i = 0; i < 3; i++) {
-    ledcSetup(i, 5000, 8);
-    ledcAttachPin(ledPins[i], i);
-    ledcWrite(i, 0);
+  if (analogLed) {
+    for (int i = 0; i < 3; i++) {
+      ledcSetup(i, 5000, 8);
+      ledcAttachPin(ledPins[i], i);
+      ledcWrite(i, 0);
+    }
   }
   l.fill(l.Color(0, 255, 0));
   l.setBrightness(0);
@@ -2826,6 +2891,7 @@ void setup() {
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
     return;
   }
+  //importantDebug(); // yes i messed up :'(
   if (!sysLoad()) {
     firstTimeSetup(); // definitely first time
   }
@@ -2843,6 +2909,10 @@ void setup() {
     l.show();
   }
 }
+
+int rate = 0;
+int lastRate = 0;
+unsigned long lastRateCheckUpdate = 0;
 
 void loop() {
 
@@ -2906,7 +2976,7 @@ void loop() {
           }
         }
         updateSingleFade();
-        for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
+        underGlowUpdate();
       break;
       case 1:
         for (int i = 0; i < 3; i++) {
@@ -2917,7 +2987,7 @@ void loop() {
           }
         }
         updateRipple();
-        for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
+        underGlowUpdate();
       break;
       case 2:
         udgSmooth(); // handled in its own function
@@ -2972,6 +3042,7 @@ void loop() {
         break;
       default: u8g2.drawStr(0, 26, "Input: Digital Emulation"); break;
     }
+    u8g2.drawStr(0, 40, ("update rate: " + String(lastRate) + "r/s").c_str());
     //float maxPress = 0.00;
     for (int i = 0; i < 3; i++) {
       if (hallVal[i] > 0.05) waitIDLE = millis();
@@ -2998,5 +3069,17 @@ void loop() {
       u8g2.setPowerSave(1);
       screenOff = true;
     }
+    rate++;
+    if (millis() - lastRateCheckUpdate > 1000) {
+      lastRateCheckUpdate = millis();
+      lastRate = rate;
+      rate = 0;
+    }
   }
 }
+
+// dear developers, i fucked up
+// so to keep the design compact, i used ws2182b leds so that i can control the underglow with only 3 wires,
+// but since the code is so hooked up with analog leds, it will take a lot of time to rewrite the code to separate ws2812 and analog leds
+// fixed: all underglow effect functions now route through underGlowUpdate() which handles both analog and ws2812b correctly, their behavior still not separated but at least it works for now
+// NoID signed
