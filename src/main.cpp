@@ -1,127 +1,5 @@
-#include <WiFi.h>
-#include <Wire.h>
-#include <ctype.h>
-#include <Arduino.h>
-#include <U8g2lib.h>
-#include <LittleFS.h>
-#include <BleGamepad.h>
-#include <ArduinoOTA.h>
-//#include <BleMouse.h>
-#include <ArduinoJson.h>
-#include <BleKeyboard.h>
-#include <NimBLEDevice.h>
-#include <MPU6050_light.h>
-#include <Adafruit_NeoPixel.h>
-
-#include "HIDTypes.h"
-#include "sdkconfig.h"
-#include <NimBLEUtils.h>
-#include <NimBLEServer.h>
-#include <NimBLEHIDDevice.h>
-#include <NimBLECharacteristic.h>
-
-#include "esp_task_wdt.h"
-#include "hidkeyboard.h"
-#include "esptinyusb.h"
-#include "keyName.h"
-#include "img.h"
-
-const String ver = "v1.9.4";
-
-// External
-Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_GRB + NEO_KHZ800);
-Adafruit_NeoPixel b = Adafruit_NeoPixel(3,  7, NEO_GRB + NEO_KHZ800);
-const bool analogLed = false;
-
-HIDkeyboard dev;
-MPU6050 mpu(Wire);
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
-  U8G2_R0,
-  U8X8_PIN_NONE
-);
-
-// Hardware pins, change if needed
-const int adcPins[3] = {1, 2, 3};        // Hall switch
-const int ledPins[3] = {7, 6, 5};        // LED output
-const int btnPins[4] = {5, 6, 12, 13}; // Buttons
-
-// Analog
-int deadZone = 32;
-float calMax[3] = {2600, 2700, 2800};
-float calMin[3] = {2200, 2300, 2300};
-float  hallVal[3] = { 0.00,  0.00,  0.00};
-int rawVal[3] = {0, 0, 0};
-bool doFilter = false;
-int filterType = 0;
-
-// Buttons
-bool  nowPress[6] = {false};
-bool lastPress[6] = {false};
-uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
-int inputHandler = 0; // 0: Digital emulation, 1: Hysteresis handling, 2: Dynamic actuation
-float actuation = 0.3; // For digital emulation
-float upperThreshold = 0.6; // For hysteresis handling
-float lowerThreshold = 0.4; // For hysteresis handling
-float windowSize = 0.3; // For dynamic actuation
-float windowFoot[3] = {0.00, 0.00, 0.00}; // For dynamic actuation
-
-unsigned long pressTime[4] = {0};
-bool holding[4] = {false};
-bool bt4Hold = false;
-unsigned long bt4time = 0;
-bool needReport = false;
-
-// Screen
-unsigned long waitIDLE = 0;
-unsigned long screenSaveDuration = 5000;
-unsigned long screenOffDuration  = 5000;
-bool screenWait = false;
-bool screenOff  = false;
-uint8_t screenBri = 1;
-int logoType = 0;
-String screenLogo = "Mufuki";
-
-// Effects
-const int MAX_WAVES      = 5;
-const int WAVE_DURATION  = 300;
-const int WAVE_DELAY     = 80;
-const int DELIGHT        = 50;
-
-int maxBri = 16;
-uint32_t lastDecTime = 0;
-uint8_t mode = 0;
-uint8_t ledOutput[3] = { 0,0,0 };
-
-bool underGlow = false;
-int glowType = 0; // 0: Tap, 1: Ripple, 2: Smooth, 3: Burn-in, 4: Soild
-bool applyEffect[3] = {false, false, false};
-bool rgb = false;
-uint8_t rgbBri = 255;
-uint8_t color[] = {255, 255, 255};
-uint8_t rainbowStep = 1;
-bool doRainbow = false;
-int updateInterval = 32;
-uint8_t rgbInterval = 10; // in n x 10ms
-unsigned long lastRGBUpdate = 0;
-unsigned long lastUpdate = 0;
-
-// Conectivity & Layouts
-bool alwaysReport = false;
-int layoutType = 0;
-uint32_t LOOP_INTERVAL_US = 1000; // 1ms = 1000Hz
-uint32_t lastLoopTime = 0;
-bool fromMenu = false;
-String btName = "Mufuki";
-
-const uint8_t preLayout[][6] = {
-  {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2}, // osu!
-  {HID_KEY_A, HID_KEY_W, HID_KEY_D, HID_KEY_Q, HID_KEY_E, HID_KEY_S},        // WASD
-  {HID_KEY_ARROW_LEFT, HID_KEY_SPACE, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_UP, HID_KEY_ENTER, HID_KEY_ARROW_DOWN}, // Arrow
-  {HID_KEY_COPY, HID_KEY_PASTE, HID_KEY_ESCAPE, HID_KEY_VOLUME_UP, HID_KEY_MUTE, HID_KEY_VOLUME_DOWN}, // Shortcut
-  {HID_KEY_ENTER, HID_KEY_SPACE, HID_KEY_BACKSPACE, HID_KEY_ARROW_LEFT, HID_KEY_ARROW_RIGHT, HID_KEY_ESCAPE}, // BLE Keyboard, useful for me
-};
-
-// why tf there is so much variables for such a osu keyboard bruh
+#include "global.h"
+#include "input.h"
 
 // Test feature, will be remove if not working
 bool saveConfig(const char *path = "/default.json") {
@@ -309,6 +187,14 @@ struct LedFade {
 };
 LedFade singleFade[3];
 
+int min(int a, int b) {
+  return (a < b) ? a : b;
+}
+
+int max(int a, int b) {
+  return (a > b) ? a : b;
+}
+
 void updateSingleFade() {
   uint32_t now = millis();
   for (int i = 0; i < 3; ++i) {
@@ -399,22 +285,6 @@ void updateRipple() {
   for (int i = 0; i < 3; ++i) {
     if (brTmp[i] > ledOutput[i]) ledOutput[i] = brTmp[i];
   }
-}
-
-int overSample(int chan, int samples = 16) {
-  long sum = 0;
-  for (int i = 0; i < samples; i++) {
-    sum += analogRead(adcPins[chan]);
-    delayMicroseconds(10);
-  }
-  return sum / samples;
-}
-
-float y[] = {0.0, 0.0, 0.0};
-int expoMovAvr(int chan, float alpha = 0.05) {
-  float x = analogRead(adcPins[chan]);
-  y[chan] = y[chan] + alpha * (x - y[chan]);
-  return y[chan];
 }
 
 void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text) {
@@ -564,110 +434,11 @@ void drawGraph(int x, int y) {
   }
 }
 
-void inputTypeDigitalEmulation() {
-  for (int i = 0; i < 6; i++) {
-    if (i < 3) {
-      if (doFilter) {
-        if (filterType == 0) {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = overSample(i);
-        } else {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = expoMovAvr(i);
-        }
-      } else rawVal[i] = analogRead(adcPins[i]);
-      float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
-      nowPress[i] = (hall > actuation);
-      if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
-        applyEffect[i] = true;
-      }
-      hallVal[i] = hall;
-    } else {
-      nowPress[i] = !digitalRead(btnPins[i - 3]);
-    }
-    if (nowPress[i] != lastPress[i]) needReport = true;
-    lastPress[i] = nowPress[i];
-  }
-}
-
-void inputTypeHysteresisHandling() {
-  for (int i = 0; i < 6; i++) {
-    if (i < 3) {
-      if (doFilter) {
-        if (filterType == 0) {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = overSample(i);
-        } else {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = expoMovAvr(i);
-        }
-      } else rawVal[i] = analogRead(adcPins[i]);
-      float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
-      if (hall > upperThreshold)
-        nowPress[i] = true;
-      else if (hall < lowerThreshold)
-        nowPress[i] = false;
-      if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
-        applyEffect[i] = true;
-      }
-      hallVal[i] = hall;
-    } else {
-      nowPress[i] = !digitalRead(btnPins[i - 3]);
-    }
-    if (nowPress[i] != lastPress[i]) needReport = true;
-    lastPress[i] = nowPress[i];
-  }
-}
-
-void inputTypeDynamicActuation() {
-  for (int i = 0; i < 6; i++) {
-    if (i < 3) {
-      if (doFilter) {
-        if (filterType == 0) {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = overSample(i);
-        } else {
-          for (int i = 0; i < 3; i++)
-            rawVal[i] = expoMovAvr(i);
-        }
-      } else rawVal[i] = analogRead(adcPins[i]);
-      float hall = constrain((rawVal[i] - calMin[i]) / (float)(calMax[i] - calMin[i] + 1), 0.00, 1.00);
-      if (hall > windowFoot[i] + windowSize) {
-        nowPress[i] = true;
-        windowFoot[i] = hall - windowSize;
-      }
-      else if (hall < windowFoot[i]) {
-        nowPress[i] = false;
-        windowFoot[i] = hall;
-      }
-      if (hall == 0.0) windowFoot[i] = 0.0;
-      if (hall == 1.0) windowFoot[i] = 1.0 - windowSize;
-      if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
-        applyEffect[i] = true;
-      }
-      hallVal[i] = hall;
-    } else {
-      nowPress[i] = !digitalRead(btnPins[i - 3]);
-    }
-    if (nowPress[i] != lastPress[i]) needReport = true;
-    lastPress[i] = nowPress[i];
-  }
-}
-
-void updateInput() {
-  switch (inputHandler) {
-    case 0: inputTypeDigitalEmulation(); break;
-    case 1: inputTypeHysteresisHandling(); break;
-    case 2: inputTypeDynamicActuation(); break;
-    default: inputTypeDigitalEmulation(); break;
-  }
-}
-
 void underGlowUpdate() {
   if (!underGlow) return;
   if (analogLed) for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
   else {
-    for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((color[0] * ledOutput[i] * rgbBri) / (255 * maxBri), (color[1] * ledOutput[i] * rgbBri) / (255 * maxBri), (color[2] * ledOutput[i] * rgbBri) / (255 * maxBri)));
+    for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((color[0] * ledOutput[i] * 255) / (255 * maxBri), (color[1] * ledOutput[i] * 255) / (255 * maxBri), (color[2] * ledOutput[i] * 255) / (255 * maxBri)));
     b.show();
   }
 }
@@ -711,8 +482,8 @@ void calibMenu() {
   while (running) {
     updateInput();
     if (calib) {
-      calMin[nowCal] = (calMin[nowCal] < rawVal[nowCal] + deadZone) ? calMin[nowCal] : rawVal[nowCal] + deadZone;
-      calMax[nowCal] = (calMax[nowCal] > rawVal[nowCal] - deadZone) ? calMax[nowCal] : rawVal[nowCal] - deadZone;
+      calMin[nowCal] = (calMin[nowCal] < rawVal[nowCal]) ? calMin[nowCal] : rawVal[nowCal];
+      calMax[nowCal] = (calMax[nowCal] > rawVal[nowCal]) ? calMax[nowCal] : rawVal[nowCal];
     }
     switch (getButton())
     {
@@ -722,9 +493,11 @@ void calibMenu() {
         graphData[i] = {0};
       for (int i = 0; i < 3; i++) {
         if (i == nowCal)
-          ledcWrite(i, 2);
+          if (analogLed) ledcWrite(i, 2);
+          else b.setPixelColor(i, b.Color(255, 255, 255));
         else
-          ledcWrite(i, 0);
+          if (analogLed) ledcWrite(i, 0);
+          else b.setPixelColor(i, b.Color(0, 0, 0));
       }
       if (calib) {
         calMin[nowCal] = 4095;
@@ -795,6 +568,10 @@ void calibMenu() {
     else b.setPixelColor(i, b.Color(0, 0, 0));
   }
   if (!analogLed) b.show();
+  //for (int i = 0; i < 3; i++) {
+  //  calMin[i] = calMin[i] + deadZone;
+  //  calMax[i] = calMax[i] - deadZone;
+  //}
 }
 
 void inputMenu() {
@@ -858,7 +635,7 @@ void inputMenu() {
         }
         else if (hysteresisChange == 0) {
           u8g2.drawStr(0, 56, "F1: U+      F2: Done");
-          u8g2.drawStr(0, 64, "F1: U-      F4: Exit");
+          u8g2.drawStr(0, 64, "F3: U-      F4: Exit");
         }
         else if (hysteresisChange == 1) {
           u8g2.drawStr(0, 56, "F1: L+      F2: Done");
@@ -1302,8 +1079,8 @@ void mgp() {
     mpu.update();
     int normLx = (int)((hallVal[2] - hallVal[1] + 1.0f) * 16383.5f); // [-1..1] → [0..32767]
     int normLy = (int)((1.00f - hallVal[0]) * 32767.0f);                       // [0..1] → [0..32767]
-    int gRx    = 32767 - (int)((constrain(mpu.getAngleY(), -70, 70) + 70) * 234); // [-90..90] → [0..32767]
-    int gRy    = 32767 - (int)((constrain(mpu.getAngleX(), -70, 70) + 70) * 234);
+    int gRx    = 32767 - (int)((constrain(-mpu.getAngleY(), -70, 70) + 70) * 234); // [-90..90] → [0..32767]
+    int gRy    = 32767 - (int)((constrain(-mpu.getAngleX(), -70, 70) + 70) * 234);
     int button = getButton();
     if (nowPress[3]) g.press(1); else g.release(1); // A
     if (nowPress[4]) g.press(2); else g.release(2); // B
@@ -1479,8 +1256,8 @@ void marm() {
   while (running) {
     updateInput();
     mpu.update();
-    int mvx = constrain(-mpu.getGyroZ() / 2, -10, 10);
-    int mvy = constrain(mpu.getGyroX()  / 2, -10, 10);
+    int mvx = constrain(-mpu.getGyroZ() /  8, -10, 10);
+    int mvy = constrain(-mpu.getGyroX()  / 8, -10, 10);
     int button = getButton();
     uint8_t brp = 0;
     int scroll = 0;
@@ -2121,7 +1898,7 @@ void mpuMenu() {
       while (running) {
         mpu.update();
         int dx = mpu.getAngleY();
-        int dy = mpu.getAngleX();
+        int dy = -mpu.getAngleX();
         int px = map(constrain(dx, -70, 70), -70, 70, 32, 96);
         int py = map(constrain(dy, -70, 70), -70, 70, 0, 64);
         u8g2.clearBuffer();
@@ -2319,7 +2096,7 @@ void deadCalib() {
         u8g2.clearBuffer();
         u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
         u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
-        String tmp = "[" + String(5 - i) + "s]";
+        String tmp = "<<<" + String(5 - i) + "s>>>";
         u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 60, tmp.c_str());
         u8g2.sendBuffer();
         delay(1000);
@@ -2355,12 +2132,41 @@ void deadCalib() {
         }
       }
       deadZone = aMax - aMin;
+      int avrgMin = (calMin[0] + calMin[1] + calMin[2]) / 3;
+      int avrgMax = (calMax[0] + calMax[1] + calMax[2]) / 3;
+      if (avrgMax - avrgMin - deadZone * 2 < 100) {
+        int opt = u8g2.userInterfaceMessage(
+          "Calibration failed!",
+          "Dead zone too big",
+          "Please try again",
+          " Ok \n More Info "
+        );
+        if (opt == 2) {
+          u8g2.userInterfaceMessage(
+            "[1/2] More Info",
+            ("Min: " + String(aMin)).c_str(),
+            ("Max: " + String(aMax)).c_str(),
+            " Next>> "
+          );
+          u8g2.userInterfaceMessage(
+            "[2/2] More Info",
+            ("DeadZone: " + String(deadZone)).c_str(),
+            ("Dynamic Range: " + String(avrgMax - avrgMin - deadZone * 2)).c_str(),
+            " Next>> "
+          );
+        }
+      }
+      u8g2.userInterfaceMessage(
+        "Calibration done!",
+        ("Dead Zone: " + String(deadZone)).c_str(),
+        "",
+        " Ok "
+      );
     }
     else if (option == 2) {
-    const int deadZoneVals[] = {0, 16, 32, 64, 128, 256};
-    const char idk[] = "0\n16\n32\n64\n128\n256";
-    int sel = u8g2.userInterfaceSelectionList("Manual Set", 0, idk);
-    int deadZone = deadZoneVals[sel];
+      uint8_t dz = deadZone;
+      u8g2.userInterfaceInputValue("Set Dead Zone", " ", &dz, 0, 255, 3, " ");
+      deadZone = dz;
     }
   }
   u8g2.userInterfaceMessage(
@@ -2457,40 +2263,72 @@ void profileMenu() {
       String prfName = "New Profile";
       int opt = 1;
       while (opt != 0) {
-        opt = u8g2.userInterfaceMessage(
-          "",
-          "Save Profile",
-          prfName.c_str(),
-          " ch.Name \n Save "
-        );
-        if (opt == 1) prfName = keyboard(prfName);
-        if (opt == 2) {
-          // remove characters not allowed in filenames
-          prfName.replace("/", "-");
-          prfName.replace("\\", "-");
-          prfName.replace(":", "-");
-          prfName.replace("*", "-");
-          prfName.replace("?", "-");
-          prfName.replace("\"", "-");
-          prfName.replace("<", "-");
-          prfName.replace(">", "-");
-          prfName.replace("|", "-");
-          prfName.trim();
-          if (prfName.length() == 0) {
-            u8g2.clearBuffer();
-            u8g2.drawStr((128 - u8g2.getStrWidth("Invalid name!"))/2, 32, "Invalid name!");
-            u8g2.sendBuffer();
-            delay(1000);
-          }
-          else {
-            if (!prfName.endsWith(".json")) prfName += ".json";
-            prfName = "/" + prfName;
-            if (saveConfig(prfName.c_str())) {
-              u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
-              opt = 0;
-            } else {
-              u8g2.userInterfaceMessage("Failed to save", prfName.c_str(), "go back and try again", " Ok ");
+        const char actions[] =
+          "New File\n"
+          "Replace File"
+        ;
+        int act = u8g2.userInterfaceSelectionList("Save Profile", 0, actions);
+        if (act == 0) break;
+        if (act == 1) {
+          
+          opt = u8g2.userInterfaceMessage(
+            "",
+            "Save Profile",
+            prfName.c_str(),
+            " ch.Name \n Save "
+          );
+          if (opt == 1) prfName = keyboard(prfName);
+          if (opt == 2) {
+            // remove characters not allowed in filenames
+            prfName.replace("/", "-");
+            prfName.replace("\\", "-");
+            prfName.replace(":", "-");
+            prfName.replace("*", "-");
+            prfName.replace("?", "-");
+            prfName.replace("\"", "-");
+            prfName.replace("<", "-");
+            prfName.replace(">", "-");
+            prfName.replace("|", "-");
+            prfName.trim();
+            if (prfName.length() == 0) {
+              u8g2.clearBuffer();
+              u8g2.drawStr((128 - u8g2.getStrWidth("Invalid name!"))/2, 32, "Invalid name!");
+              u8g2.sendBuffer();
+              delay(1000);
             }
+            else {
+              if (!prfName.endsWith(".json")) prfName += ".json";
+              prfName = "/" + prfName;
+              if (saveConfig(prfName.c_str())) {
+                u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
+                opt = 0;
+              } else {
+                u8g2.userInterfaceMessage("Failed to save", prfName.c_str(), "go back and try again", " Ok ");
+              }
+            }
+          }
+        }
+        if (act == 2) {
+          std::vector<String> profiles = listProfiles();
+          int profilesCount = profiles.size();
+          if (profilesCount) {
+            String subSel = "";
+            for (int i = 0; i < profilesCount; i++) {
+              subSel += profiles[i];
+              if (i < profilesCount - 1) subSel += "\n";
+            }
+            int choose = u8g2.userInterfaceSelectionList("Replace Profile", 0, subSel.c_str());
+            if (choose != 0) {
+              prfName = "/" + profiles[choose - 1];
+              if (saveConfig(prfName.c_str())) {
+                u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
+                opt = 0;
+              } else {
+                u8g2.userInterfaceMessage("Failed to save", prfName.c_str(), "go back and try again", " Ok ");
+              }
+            }
+          } else {
+            u8g2.userInterfaceMessage("Sorry but you haven't", "save any profile yet", "go back and save a profile", " Ok ");
           }
         }
       }
@@ -3078,8 +2916,7 @@ void loop() {
   }
 }
 
-// dear developers, i fucked up
-// so to keep the design compact, i used ws2182b leds so that i can control the underglow with only 3 wires,
-// but since the code is so hooked up with analog leds, it will take a lot of time to rewrite the code to separate ws2812 and analog leds
-// fixed: all underglow effect functions now route through underGlowUpdate() which handles both analog and ws2812b correctly, their behavior still not separated but at least it works for now
-// NoID signed
+// dear developers, i'm making a big move
+// since this project is getting bigger and bigger, i'm trying to split the code so it's more manageable and easy to modify
+// though this will take a lot of time, so stay tuned
+// - NoID signed -

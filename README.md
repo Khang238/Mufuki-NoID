@@ -1,15 +1,20 @@
 # Mufuki Project
 
-## Attention
-I just rebuild the project (physicaly) so this version will use ws2182b as underglow leds instead of the old analog ones, i still leave the option for analog led so that no one will be left out, but this project will have its own configuration option in the code to choose between the two
+## Attention!
+I just rebuilt the project (physicaly) so this version will use ws2182b as underglow leds instead of the old analog ones, i still leave the option for analog led so that no one will be left out, but this project will have its own configuration option in the code to choose between the two
 Also, for some reason my esp32 cant connect to wifi, so i might have to leave web app and wifi related features for later, but i will try to figure it out asap
+Actually, i put two wires across the esp32 and somehow make the thing can't connect to wifi, so i rearranged them and now it works, so the web app and wifi related features are back on the table (maybe)
 
 ## Updated:
 - Setup Screen
 - WS2812B Adressable LED compatibility
 
+## In progress:
+- Structure code refactor/split to make it more modular and easier to modify
+
 ## Planing:
 - Web App (soon, maybe next 10 years)
+- API App (to replace Web App, if this is better, Web App will be cancelled)
 - USB CDC functionality for osu! display if posible
 - More effect for the underglow leds since they are rgb now
 - Macro support
