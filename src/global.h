@@ -43,11 +43,6 @@ constexpr int adcPins[3] = {1, 2, 3};        // Hall switch
 constexpr int ledPins[3] = {7, 6, 5};        // LED output
 constexpr int btnPins[4] = {5, 6, 12, 13};   // Buttons
 
-constexpr int MAX_WAVES      = 5;   // those
-constexpr int WAVE_DURATION  = 300; // will
-constexpr int WAVE_DELAY     = 80;  // be
-constexpr int DELIGHT        = 50;  // configurable (in more 10 years i guess)
-
 extern int deadZone;
 extern float calMax[3];
 extern float calMin[3];
