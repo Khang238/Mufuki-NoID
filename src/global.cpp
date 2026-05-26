@@ -32,7 +32,7 @@ const String ver = "v2.0.0";
 
 // Hardware objects
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);
-Adafruit_NeoPixel b = Adafruit_NeoPixel(3,  7, NEO_GRB + NEO_KHZ800);
+Adafruit_NeoPixel b = Adafruit_NeoPixel(3, 11, NEO_GRB + NEO_KHZ800);
 
 HIDkeyboard dev;
 MPU6050 mpu(Wire);
@@ -103,3 +103,23 @@ uint32_t LOOP_INTERVAL_US = 1000; // 1ms = 1000Hz
 uint32_t lastLoopTime = 0;
 bool fromMenu = false;
 String btName = "Mufuki";
+
+void screenSaver(const char* title) {
+  u8g2.clearBuffer();
+  if (logoType > 1 && logoType < 12) {
+    u8g2.drawXBMP(20, 20, 88, 232, logoKao[logoType - 2]);
+    u8g2.setDrawColor(0);
+    u8g2.drawBox(20, 0, 88, 20);
+    u8g2.drawBox(20, 40, 88, 24);
+    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
+  }
+  else {
+    u8g2.setFont(u8g2_font_fub20_tf);
+    u8g2.drawStr((128 - u8g2.getStrWidth(screenLogo.c_str()))/2, 40, screenLogo.c_str());
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
+  }
+  u8g2.sendBuffer();
+}

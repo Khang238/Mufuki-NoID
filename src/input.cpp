@@ -95,3 +95,225 @@ void updateInput() {
     default: inputTypeDigitalEmulation(); break;
   }
 }
+
+int getButton() {
+  for (int i = 0; i < 4; i++) {
+    if (!digitalRead(btnPins[i])) {
+      if (!holding[i]) {
+        pressTime[i] = millis();
+        holding[i] = true;
+      }
+    } else {
+      if (holding[i]) {
+        holding[i] = false;
+        return i;
+      }
+    }
+  }
+  return -1;
+}
+
+// very unnecessary important code for morse code input, because who tf REMEMBERS THE WHOLE FUCKING MORSE CODE
+
+struct MorseNode {
+  char letter;
+  MorseNode *dot;
+  MorseNode *dash;
+};
+
+void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text) {
+  int cursorX = x;
+  int cursorY = y;
+  int lineHeight = u8g2.getMaxCharHeight();
+
+  for (int i = 0; text[i] != '\0'; i++) {
+    char c[2] = { text[i], '\0' };
+    int charWidth = u8g2.getStrWidth(c);
+
+    if (cursorX + charWidth > x + maxWidth) {
+      cursorX = x;
+      cursorY += lineHeight;
+    }
+
+    u8g2.drawStr(cursorX, cursorY, c);
+
+    cursorX += charWidth;
+  }
+}
+
+MorseNode root = {'\0', nullptr, nullptr};
+
+void addMorse(const char *code, char letter) {
+  MorseNode *node = &root;
+  for (const char *p = code; *p; p++) {
+    if (*p == '.') {
+      if (!node->dot) node->dot = new MorseNode{'\0', nullptr, nullptr};
+      node = node->dot;
+    } else if (*p == '-') {
+      if (!node->dash) node->dash = new MorseNode{'\0', nullptr, nullptr};
+      node = node->dash;
+    }
+  }
+  node->letter = letter;
+}
+
+bool unsignedCharacter = false;
+char decodeMorse(const char *code) {
+  MorseNode *node = &root;
+  for (const char *p = code; *p; p++) {
+    unsignedCharacter = false;
+    if (*p == '.' && node->dot) node = node->dot;
+    else if (*p == '-' && node->dash) node = node->dash;
+    else {unsignedCharacter = true; return '?';}
+  }
+  return node->letter ? node->letter : '?';
+}
+
+bool genMorse = false;
+void setupMorse() {
+  addMorse(".-", 'a');
+  addMorse("-...", 'b');
+  addMorse("-.-.", 'c');
+  addMorse("-..", 'd');
+  addMorse(".", 'e');
+  addMorse("..-.", 'f');
+  addMorse("--.", 'g');
+  addMorse("....", 'h');
+  addMorse("..", 'i');
+  addMorse(".---", 'j');
+  addMorse("-.-", 'k');
+  addMorse(".-..", 'l');
+  addMorse("--", 'm');
+  addMorse("-.", 'n');
+  addMorse("---", 'o');
+  addMorse(".--.", 'p');
+  addMorse("--.-", 'q');
+  addMorse(".-.", 'r');
+  addMorse("...", 's');
+  addMorse("-", 't');
+  addMorse("..-", 'u');
+  addMorse("...-", 'v');
+  addMorse(".--", 'w');
+  addMorse("-..-", 'x');
+  addMorse("-.--", 'y');
+  addMorse("--..", 'z');
+  addMorse("-----", '0');
+  addMorse(".----", '1');
+  addMorse("..---", '2');
+  addMorse("...--", '3');
+  addMorse("....-", '4');
+  addMorse(".....", '5');
+  addMorse("-....", '6');
+  addMorse("--...", '7');
+  addMorse("---..", '8');
+  addMorse("----.", '9');
+  addMorse(".-.-.-", '.');
+  addMorse("--..--", ',');
+  addMorse("..--..", '?');
+  addMorse(".----.", '\'');
+  addMorse("-.-.--", '!');
+  addMorse("-..-.", '/');
+  addMorse("-.--.", '(');
+  addMorse("-.--.-", ')');
+  addMorse(".-...", '&');
+  addMorse("---...", ':');
+  addMorse("-.-.-.", ';');
+  addMorse("-...-", '=');
+  addMorse(".-.-.", '+');
+  addMorse("-....-", '-');
+  addMorse("..--.-", '_');
+  addMorse(".--.-.", '@');
+  addMorse(".-..-.", '\"');
+  addMorse("...-.", '*');
+  addMorse("-.-.-", '\\');
+  addMorse("---.-", '%');
+  addMorse("--.-.", '#');
+  addMorse("--.-.-", '|');
+  addMorse("......", '^');
+  addMorse(".---..", '~');
+  addMorse("-..-.-", '`');
+  addMorse("...-..", '$');
+  addMorse(".--..", '[');
+  addMorse(".--..-", ']');
+  addMorse(".--.-", '{');
+  addMorse(".--.--", '}');
+  addMorse("-.---", '<');
+  addMorse("-.----", '>');
+  addMorse("..--", ' ');
+}
+
+bool morseMode = true;
+String keyboard(String text) {
+  String prevText = text;
+  bool lastFilterState = doFilter;
+  if (morseMode) {
+    doFilter = false; // can be annoying
+    bool capsLock = false;
+    setupMorse();
+    bool typing = true;
+    String currentCode = "";
+    unsigned long lastInputTime = millis();
+    while (typing) {
+      updateInput();
+      if (applyEffect[0]) { // Dot
+        currentCode += currentCode.length() < 8 ? "." : "";
+        lastInputTime = millis();
+        applyEffect[0] = false;
+      }
+      if (applyEffect[1]) { // Dash
+        currentCode += currentCode.length() < 8 ? "-" : "";
+        lastInputTime = millis();
+        applyEffect[1] = false;
+      }
+      if (applyEffect[2]) { // Interrupt
+        lastInputTime = millis() + 1200;
+        applyEffect[2] = false;
+      }
+      if (millis() - lastInputTime > 800 && currentCode.length() > 0) {
+        if (currentCode == ".-.-") typing = false; // Enter
+        else if (currentCode == "----") text.remove(text.length() - 1); // Backspace
+        else if (currentCode == "....-.") capsLock = !capsLock; // Caps Lock
+        else {
+          char decodedChar = decodeMorse(currentCode.c_str());
+          if (text.length() < 255 && !unsignedCharacter)
+            text += (char)(capsLock ? toupper(decodedChar) : decodedChar);
+        }
+        currentCode = "";
+      }
+      int button = getButton();
+      if (button == 0) {
+        if (millis() - pressTime[0] < 1000) text.remove(text.length() - 1);
+        else text = "";
+      }
+      if (button == 1) capsLock = !capsLock;
+      if (button == 2) {
+        int opt = u8g2.userInterfaceMessage(
+          "Morse Code Keyboard",
+          "using GBoard Morse",
+          "code layout",
+          " OK \n Hint \n QR "
+        );
+        // leave for now
+      }
+      if (button == 3) return prevText;
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_fub20_tf);
+      u8g2.drawStr(64 - u8g2.getStrWidth(currentCode.c_str()) / 2, 20, currentCode.c_str());
+      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+      char tmp = decodeMorse(currentCode.c_str());
+      String tmpStr = unsignedCharacter ? "[???]" : String(tmp);
+      if (currentCode == "..--") tmpStr = "[space]";
+      else if (currentCode == ".-.-") tmpStr = "[enter]";
+      else if (currentCode == "----") tmpStr = "[backspace]";
+      else if (currentCode == "....-.") tmpStr = "[caps " + String(capsLock ? "off" : "on") + "]";
+      if (currentCode != "") u8g2.drawStr(64 - u8g2.getStrWidth(tmpStr.c_str()) / 2, 32, tmpStr.c_str());
+      else u8g2.drawStr(64 - u8g2.getStrWidth("[none]") / 2, 32, "[none]");
+      u8g2.drawStr(0, 40, String((String)"Text: " + (capsLock ? "[C]" : "")).c_str());
+      drawWrappedText(u8g2, 0, 50, 128, (((millis() - lastInputTime + 251) % 500 < 250) ? text : text + "_").c_str());
+      u8g2.sendBuffer();
+    }
+  }
+  doFilter = lastFilterState;
+  root = {'\0', nullptr, nullptr}; // destroy the tree to save memory
+  return text;
+}

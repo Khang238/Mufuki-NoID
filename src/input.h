@@ -16,3 +16,27 @@ void inputTypeHysteresisHandling();
 void inputTypeDynamicActuation();
 
 void updateInput();
+
+struct MorseNode {
+  char letter;
+  MorseNode *dot;
+  MorseNode *dash;
+};
+
+void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text);
+
+int getButton();
+
+extern MorseNode root;
+
+void addMorse(const char *code, char letter);
+
+extern bool unsignedCharacter;
+char decodeMorse(const char *code);
+
+extern bool genMorse;
+void setupMorse();
+
+extern bool morseMode;
+
+String keyboard(String text);
