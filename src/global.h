@@ -25,6 +25,7 @@
 
 #include "esp_task_wdt.h"
 #include "hidkeyboard.h"
+#include "hidgamepad.h"
 #include "esptinyusb.h"
 #include "keyName.h"
 #include "img.h"

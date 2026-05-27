@@ -4,6 +4,7 @@
 #include "profile.h"
 #include "menu.h"
 #include "bledev.h"
+#include "sandbox.h"
 
 int min(int a, int b) {
   return (a < b) ? a : b;
@@ -110,6 +111,13 @@ void importantDebug() {// use in case i messed up the wiring and need to quickly
   }
 } 
 
+void tset() {
+  setupSandbox1();
+  while (true) {
+    loopSandbox1();
+  }
+}
+
 void mainMenu() {
   const char menu_items[] =
     "Calibration\n"
@@ -119,7 +127,8 @@ void mainMenu() {
     "Connection\n"
     "Other\n"
     "OTA Update\n"
-    "About";
+    "About\n"
+    "Experimental";
 
   if (analogLed) {
     for (int i = 0; i < 3; i++) ledcWrite(i, 0);
@@ -165,6 +174,7 @@ void mainMenu() {
         otaUpdate();
         break;
       case 8: about(); break;
+      case 9: tset(); break;
       default:
         break;
     }
