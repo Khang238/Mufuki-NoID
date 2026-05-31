@@ -59,19 +59,55 @@ struct Mapping {
   uint8_t      keycode;
 };
 
+// Labels
+extern const char* srcLabels[15];
+
+extern const char* dstLabels[12];
+
+extern const char* combineLabels[3];
+
 #define MAX_MAPPINGS 24  // đủ cho 15 source × vài target
 
 struct Profile {
-  char     name[16];
-  uint8_t  usbMode;        // KEYBOARD / GAMEPAD / MOUSE / BLE
-  uint8_t  inputHandler;
-  float    actuation;
-  float    windowSize;
-  float    upperThreshold;
-  float    lowerThreshold;
+  uint8_t usbMode = 0;
+  bool    ble = false;
 
-  uint8_t  mappingCount;
-  Mapping  mappings[MAX_MAPPINGS];
+  // Input
+  uint8_t inputHandler = 0;
+  float   actuation = 0.3;
+  float   windowSize = 0.3;
+  float   upperThreshold = 0.6;
+  float   lowerThreshold = 0.4;
+  float   calMax[3] = {2200, 2200, 2200};
+  float   calMin[3] = {2000, 2000, 2000};
+  int     deadZone = 8;
+  bool    doFilter = false;
+  uint8_t filterType = 0;
+  uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
+
+  // Display
+  uint8_t       screenBri = 128;
+  unsigned long screenSaveDuration = 5000;
+  unsigned long screenOffDuration = 10000;
+  int           logoType = 0;
+  char          screenLogo[32] = "Mufuki";
+
+  // Effects
+  bool    underGlow = false;
+  uint8_t glowType = 0;
+  bool    rgb = false;
+  uint8_t rgbBri = 255;
+  uint8_t color[3] = {255, 255, 255};
+  bool    doRainbow = false;
+  uint8_t rainbowStep = 0;
+  uint8_t rgbInterval = 100;
+
+  // BLE
+  char btName[32] = "Mufuki";
+
+  // Mapping
+  uint8_t mappingCount;
+  Mapping mappings[MAX_MAPPINGS];
 };
 
 struct OutputState {
@@ -82,6 +118,27 @@ struct OutputState {
   int8_t   mouseX, mouseY, mouseWheel;
 };
 
+bool addAxisMapping(Profile& p, InputSource src, OutputTarget dst,
+                    float inMin, float inMax, float outMin, float outMax,
+                    bool clamp, CombineMode combine = COMBINE_NONE);
+
+bool addThresholdMapping(Profile& p, InputSource src, OutputTarget dst,
+                         float posThresh, float negThresh, float absThresh,
+                         uint8_t keycode, CombineMode combine = COMBINE_NONE);
+
+bool editAxisMapping(Profile& p, int index, InputSource src, OutputTarget dst,
+                     float inMin, float inMax, float outMin, float outMax,
+                     bool clamp, CombineMode combine = COMBINE_NONE);
+
+bool editThresholdMapping(Profile& p, int index, InputSource src, OutputTarget dst,
+                          float posThresh, float negThresh, float absThresh,
+                          uint8_t keycode, CombineMode combine = COMBINE_NONE);
+
+const Mapping* getMapping(const Profile& p, int index);
+String mappingToString(const Mapping& m);
+
+bool removeMapping(Profile& p, int index);
+                         
 float mapf(float x, float inMin, float inMax, float outMin, float outMax, bool clamp);
 
 float readSource(InputSource src);

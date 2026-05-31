@@ -111,11 +111,55 @@ void importantDebug() {// use in case i messed up the wiring and need to quickly
   }
 } 
 
-void tset() {
-  setupSandbox1();
-  while (true) {
-    loopSandbox1();
+void clearDisk() {
+  int opt = u8g2.userInterfaceMessage(
+    "Clear Disk",
+    "Continute at your",
+    "own risk",
+    " Yes \n No "
+  );
+  if (opt != 1) return;
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return;
   }
+
+  File file = root.openNextFile();
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Disk..."))/2, 28, "Clearing Disk...");
+  u8g2.sendBuffer();
+  while (file) {
+    String fname = file.name();
+    file.close();
+    LittleFS.remove(fname);
+    file = root.openNextFile();
+  }
+}
+
+void tset() {
+  const char testMenu[] =
+    "Profile V2\n"
+    "Reset/Clear all";
+  int sel = 1;
+  while (sel > 0) {
+    sel = u8g2.userInterfaceSelectionList("Test Menu", sel, testMenu);
+    switch (sel) {
+      case 1: testProfilev2(); break;
+      case 2: clearDisk(); break;
+      default: break;
+    }
+  }
+}
+
+Profile idk = {};
+void genMap() {
+
 }
 
 void mainMenu() {
@@ -432,16 +476,6 @@ void loop() {
     lastRateCheckUpdate = millis();
     lastRate = rate;
     rate = 0;
-  }
-  // reboot to bootloader if IO0 held while reset
-  if (!digitalRead(0) && !io0Hold) {
-    io0Hold = true;
-    lastIo0Hold = millis();
-  } else if (digitalRead(0) && io0Hold) {
-    io0Hold = false;
-    if (millis() - lastIo0Hold > 2000) {
-      forceReset();
-    }
   }
 }
 

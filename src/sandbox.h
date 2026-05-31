@@ -2,20 +2,16 @@
 #include "global.h"
 #include "mapping.h"
 #include "input.h"
-
-#define MODE_KEYBOARD 0
-#define MODE_GAMEPAD  1
-#define MODE_MOUSE    2
-
-Profile createGamepadTestProfile();
+#include "profile.h"
 
 extern Profile testProfile;
-extern OutputState testOutputState;
-extern Profile prf;
-extern HIDgamepad devgp;
 
-void setupSandbox1();
-void loopSandbox1();
+float valueSet(const char *title, float input, bool clamp = false, float clampMin = -255, float clampMax = 255);
 
-void setupSandbox2();
-void loopSandbox2();
+void thrAdd(Profile& p);
+
+void axsAdd(Profile& p);
+
+void editMapping(Profile& p);
+
+void testProfilev2();

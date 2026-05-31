@@ -32,6 +32,9 @@
 
 extern const String ver;
 
+extern int  usbMode;
+extern bool withBLE;
+
 extern Adafruit_NeoPixel l;
 extern Adafruit_NeoPixel b;
 constexpr bool analogLed = false; // change if using analog LED control

@@ -149,6 +149,149 @@ bool loadConfig(const char *path) {
   return true;
 }
 
+// profile.cpp
+
+bool saveProfile(const char* path, const Profile& p) {
+  File file = LittleFS.open(path, "w");
+  if (!file) return false;
+
+  DynamicJsonDocument doc(3072);
+
+  doc["pt"] = 2;
+  doc["um"] = p.usbMode;
+  doc["bl"] = p.ble;
+
+  // Input
+  doc["ih"] = p.inputHandler;
+  doc["at"] = p.actuation;
+  doc["ws"] = p.windowSize;
+  doc["ut"] = p.upperThreshold;
+  doc["lt"] = p.lowerThreshold;
+  doc["dz"] = p.deadZone;
+  doc["df"] = p.doFilter;
+  doc["ft"] = p.filterType;
+  for (int i = 0; i < 3; i++) doc["cx"][i] = p.calMax[i];
+  for (int i = 0; i < 3; i++) doc["cm"][i] = p.calMin[i];
+  for (int i = 0; i < 6; i++) doc["lo"][i] = p.layout[i];
+
+  // Display
+  doc["sb"] = p.screenBri;
+  doc["ss"] = p.screenSaveDuration;
+  doc["so"] = p.screenOffDuration;
+  doc["lg"] = p.logoType;
+  doc["sl"] = p.screenLogo;
+
+  // Effects
+  doc["ug"] = p.underGlow;
+  doc["gt"] = p.glowType;
+  doc["rl"] = p.rgb;
+  doc["rb"] = p.rgbBri;
+  for (int i = 0; i < 3; i++) doc["rc"][i] = p.color[i];
+  doc["dr"] = p.doRainbow;
+  doc["rs"] = p.rainbowStep;
+  doc["ri"] = p.rgbInterval;
+
+  // BLE
+  doc["bn"] = p.btName;
+
+  // Mapping
+  JsonArray maps = doc.createNestedArray("mp");
+  for (int i = 0; i < p.mappingCount; i++) {
+    const Mapping& m = p.mappings[i];
+    JsonObject obj = maps.createNestedObject();
+    obj["s"]  = (uint8_t)m.src;
+    obj["d"]  = (uint8_t)m.dst;
+    obj["ax"] = m.isAxis;
+    obj["cb"] = (uint8_t)m.combine;
+    obj["kc"] = m.keycode;
+    obj["a"]  = m.isAxis ? m.data.axis.inMin       : m.data.threshold.posThresh;
+    obj["b"]  = m.isAxis ? m.data.axis.inMax        : m.data.threshold.negThresh;
+    obj["c"]  = m.isAxis ? m.data.axis.outMin       : m.data.threshold.absThresh;
+    obj["d2"] = m.isAxis ? m.data.axis.outMax       : 0.0f;
+    obj["cl"] = m.isAxis ? m.data.axis.clamp        : false;
+  }
+
+  bool ok = serializeJson(doc, file) > 0;
+  file.close();
+  return ok;
+}
+
+bool loadProfile(const char* path, Profile& p) {
+  File file = LittleFS.open(path, "r");
+  if (!file) return false;
+
+  DynamicJsonDocument doc(3072);
+  DeserializationError err = deserializeJson(doc, file);
+  file.close();
+  if (err) return false;
+  if (!doc["pt"].is<int>() || doc["pt"].as<int>() != 2) return false;
+
+  p.usbMode = doc["um"] | p.usbMode;
+  p.ble     = doc["bl"] | p.ble;
+
+  // Input
+  p.inputHandler   = doc["ih"] | p.inputHandler;
+  p.actuation      = doc["at"] | p.actuation;
+  p.windowSize     = doc["ws"] | p.windowSize;
+  p.upperThreshold = doc["ut"] | p.upperThreshold;
+  p.lowerThreshold = doc["lt"] | p.lowerThreshold;
+  p.deadZone       = doc["dz"] | p.deadZone;
+  p.doFilter       = doc["df"] | p.doFilter;
+  p.filterType     = doc["ft"] | p.filterType;
+  if (doc["cx"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) p.calMax[i] = doc["cx"][i] | p.calMax[i];
+  if (doc["cm"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) p.calMin[i] = doc["cm"][i] | p.calMin[i];
+  if (doc["lo"].is<JsonArray>())
+    for (int i = 0; i < 6; i++) p.layout[i] = doc["lo"][i] | p.layout[i];
+
+  // Display
+  p.screenBri          = doc["sb"] | p.screenBri;
+  p.screenSaveDuration = doc["ss"] | p.screenSaveDuration;
+  p.screenOffDuration  = doc["so"] | p.screenOffDuration;
+  p.logoType           = doc["lg"] | p.logoType;
+  if (doc["sl"].is<const char*>())
+    strncpy(p.screenLogo, doc["sl"].as<const char*>(), sizeof(p.screenLogo) - 1);
+
+  // Effects
+  p.underGlow  = doc["ug"] | p.underGlow;
+  p.glowType   = doc["gt"] | p.glowType;
+  p.rgb        = doc["rl"] | p.rgb;
+  p.rgbBri     = doc["rb"] | p.rgbBri;
+  if (doc["rc"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) p.color[i] = doc["rc"][i] | p.color[i];
+  p.doRainbow  = doc["dr"] | p.doRainbow;
+  p.rainbowStep = doc["rs"] | p.rainbowStep;
+  p.rgbInterval = doc["ri"] | p.rgbInterval;
+
+  // BLE
+  if (doc["bn"].is<const char*>())
+    strncpy(p.btName, doc["bn"].as<const char*>(), sizeof(p.btName) - 1);
+
+  // Mapping
+  p.mappingCount = 0;
+  if (doc["mp"].is<JsonArray>()) {
+    for (JsonObject obj : doc["mp"].as<JsonArray>()) {
+      if (p.mappingCount >= MAX_MAPPINGS) break;
+      Mapping& m = p.mappings[p.mappingCount++];
+      m.src     = (InputSource) (obj["s"]  | 0);
+      m.dst     = (OutputTarget)(obj["d"]  | 0);
+      m.isAxis  =                obj["ax"] | false;
+      m.combine = (CombineMode)  (obj["cb"]| 0);
+      m.keycode =                obj["kc"] | 0;
+      float a   = obj["a"]  | 0.0f;
+      float b   = obj["b"]  | 0.0f;
+      float c   = obj["c"]  | 0.0f;
+      float d   = obj["d2"] | 0.0f;
+      bool  cl  = obj["cl"] | false;
+      if (m.isAxis) m.data.axis      = { a, b, c, d, cl };
+      else          m.data.threshold = { a, b, c };
+    }
+  }
+
+  return true;
+}
+
 bool sysSave() {
   File file = LittleFS.open("/sys.cfg", "w");
   if (!file) return false;

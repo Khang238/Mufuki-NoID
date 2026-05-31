@@ -30,6 +30,9 @@
 
 const String ver = "v2.0.0";
 
+int  usbMode = 0;
+bool withBLE = false;
+
 // Hardware objects
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);
 Adafruit_NeoPixel b = Adafruit_NeoPixel(3, 11, NEO_GRB + NEO_KHZ800);

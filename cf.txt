@@ -1,0 +1,118 @@
+# My head is a mess rn
+
+<<<< Code flow right now >>>>
+
+[boot] ######
+|
++--> [Wireless off]
+|
++--> [LEDs init]
+|    +--> [Build-in LED show red]
+|
++--> [I2C init]
+|    +--> [U8g2 init]
+|    +--> [IMU init]
+|         +--> [LED show result]
+|
++--> [IO init]
+|    +--> [ADC init]
+|    +--> [Buttons init]
+|
++--> [Profile load]
+|    +--> [File system init]
+|    |    +--> (Warning if failed)
+|    +--> [Check system configuration file]
+|    |    +--> (Run first time setup if not found)
+|    +--> [Try to load profile]
+|         +--> (Load default profile if failed)
+|
++--> [USB device init]
+|
++--> [Reset IDLE timer]
+|
++--> [Display LED]
+|
+[end boot]
+
+[loop] ######
+|
++--> [Check loop timer]
+|    +--> (Skip if not elapsed)
+|
++--> [F4 button handling] +--> |Reset IDLE timer|
+|    +--> [Short press: Toggle display]
+|    +--> [Long press: Enter Main Menu]
+|
++--> [Read inputs]
+|    +--> (set needReport to true if forced)
+|
++--> [USB report]
+|
++--> [Underglow LED update]
+|
++--> [LED update]
+|
++--> [Display handling]
+|
++--> [Rate ticker]
+|
+[end loop]
+
+
+<<<< copied of Code flow right now >>>>
+
+[boot] ######
+|
++--> [Wireless off]
+|
++--> [LEDs init]
+|    +--> [Build-in LED show red]
+|
++--> [I2C init]
+|    +--> [U8g2 init]
+|    +--> [IMU init]
+|         +--> [LED show result]
+|
++--> [IO init]
+|    +--> [ADC init]
+|    +--> [Buttons init]
+|
++--> [Profile load]
+|    +--> [File system init]
+|    |    +--> (Warning if failed)
+|    +--> [Check system configuration file]
+|    |    +--> (Run first time setup if not found)
+|    +--> [Try to load profile]
+|         +--> (Load default profile if failed)
+|
++--> [USB device init]
+|
++--> [Reset IDLE timer]
+|
++--> [Display LED]
+|
+[end boot]
+
+[loop] ######
+|
++--> [Check loop timer]
+|    +--> (Skip if not elapsed)
+|
++--> [F4 button handling] +--> |Reset IDLE timer|
+|    +--> [Short press: Toggle display]
+|    +--> [Long press: Enter Main Menu]
+|
++--> [Read inputs]
+|    +--> (set needReport to true if forced)
+|
++--> [USB report]
+|
++--> [Underglow LED update]
+|
++--> [LED update]
+|
++--> [Display handling]
+|
++--> [Rate ticker]
+|
+[end loop]

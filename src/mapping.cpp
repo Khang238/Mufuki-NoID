@@ -1,5 +1,100 @@
 #include "mapping.h"
 
+const char* srcLabels[15] = {
+  "Hall0","Hall1","Hall2",
+  "Btn0","Btn1","Btn2",
+  "GyrX","GyrY","GyrZ",
+  "AccX","AccY","AccZ",
+  "AngX","AngY","AngZ"
+};
+
+const char* dstLabels[12] = {
+  "Key",
+  "LX","LY","RX","RY","LT","RT",
+  "GPBtn",
+  "MsX","MsY","MsBtn","MsW"
+};
+
+const char* combineLabels[3] = { "", "+", "-" };
+
+bool addAxisMapping(Profile& p, InputSource src, OutputTarget dst,
+                    float inMin, float inMax, float outMin, float outMax,
+                    bool clamp, CombineMode combine) {
+  if (p.mappingCount >= MAX_MAPPINGS) return false;
+  Mapping& m = p.mappings[p.mappingCount++];
+  m.src     = src;
+  m.dst     = dst;
+  m.isAxis  = true;
+  m.combine = combine;
+  m.data.axis = { inMin, inMax, outMin, outMax, clamp };
+  return true;
+}
+
+bool addThresholdMapping(Profile& p, InputSource src, OutputTarget dst,
+                         float posThresh, float negThresh, float absThresh,
+                         uint8_t keycode, CombineMode combine) {
+  if (p.mappingCount >= MAX_MAPPINGS) return false;
+  Mapping& m = p.mappings[p.mappingCount++];
+  m.src     = src;
+  m.dst     = dst;
+  m.isAxis  = false;
+  m.combine = combine;
+  m.keycode = keycode;
+  m.data.threshold = { posThresh, negThresh, absThresh };
+  return true;
+}
+
+bool editAxisMapping(Profile& p, int index, InputSource src, OutputTarget dst,
+                     float inMin, float inMax, float outMin, float outMax,
+                     bool clamp, CombineMode combine) {
+  if (index < 0 || index >= p.mappingCount) return false;
+  Mapping& m = p.mappings[index];
+  m.src     = src;
+  m.dst     = dst;
+  m.isAxis  = true;
+  m.combine = combine;
+  m.data.axis = { inMin, inMax, outMin, outMax, clamp };
+  return true;
+}
+
+bool editThresholdMapping(Profile& p, int index, InputSource src, OutputTarget dst,
+                          float posThresh, float negThresh, float absThresh,
+                          uint8_t keycode, CombineMode combine) {
+  if (index < 0 || index >= p.mappingCount) return false;
+  Mapping& m = p.mappings[index];
+  m.src     = src;
+  m.dst     = dst;
+  m.isAxis  = false;
+  m.combine = combine;
+  m.keycode = keycode;
+  m.data.threshold = { posThresh, negThresh, absThresh };
+  return true;
+}
+
+bool removeMapping(Profile& p, int index) {
+  if (index < 0 || index >= p.mappingCount) return false;
+  for (int i = index; i < p.mappingCount - 1; i++)
+    p.mappings[i] = p.mappings[i + 1];
+  p.mappingCount--;
+  return true;
+}
+
+const Mapping* getMapping(const Profile& p, int index) {
+  if (index < 0 || index >= p.mappingCount) return nullptr;
+  return &p.mappings[index];
+}
+
+String mappingToString(const Mapping& m) {
+  String s = String(srcLabels[m.src]) + "->" + String(dstLabels[m.dst]);
+  if (m.combine != COMBINE_NONE)
+    s += String(combineLabels[m.combine]);
+  if (m.isAxis)
+    s += " [" + String(m.data.axis.inMin,0) + "~" + String(m.data.axis.inMax,0) + "]";
+  else
+    s += " >" + String(m.data.threshold.posThresh,0);
+  return s;
+}
+
 float mapf(float x, float inMin, float inMax, float outMin, float outMax, bool clamp) {
   if (inMax - inMin == 0) return outMin; // tránh chia 0
   float mapped = (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
@@ -131,3 +226,4 @@ void applyMappings(Profile& p, OutputState& state) {
     }
   }
 }
+
