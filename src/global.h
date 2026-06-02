@@ -26,6 +26,7 @@
 #include "esp_task_wdt.h"
 #include "hidkeyboard.h"
 #include "hidgamepad.h"
+#include "hidmouse.h"
 #include "esptinyusb.h"
 #include "keyName.h"
 #include "img.h"
@@ -40,6 +41,8 @@ extern Adafruit_NeoPixel b;
 constexpr bool analogLed = false; // change if using analog LED control
 
 extern HIDkeyboard dev;
+extern HIDgamepad gdev;
+extern HIDmouse mdev;
 extern MPU6050 mpu;
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 
@@ -107,6 +110,10 @@ extern uint32_t lastLoopTime;
 extern bool fromMenu;
 extern String btName;
 
+extern int rate;
+extern int lastRate;
+extern unsigned long lastRateCheckUpdate;
+
 constexpr uint8_t preLayout[5][6] = {
   {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2}, // osu!
   {HID_KEY_A, HID_KEY_W, HID_KEY_D, HID_KEY_Q, HID_KEY_E, HID_KEY_S},        // WASD
@@ -116,3 +123,5 @@ constexpr uint8_t preLayout[5][6] = {
 };
 
 void screenSaver(const char* title);
+
+void forceReset();

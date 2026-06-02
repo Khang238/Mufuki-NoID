@@ -1,6 +1,7 @@
 #include "profile.h"
 
 String configPath = "/default.json";
+String mappingPath = "/mapping.json";
 bool systemReset = false;
 
 bool saveConfig(const char *path) {
@@ -8,6 +9,8 @@ bool saveConfig(const char *path) {
   if (!file) return false;
 
   DynamicJsonDocument doc(1024);
+
+  doc["version"] = 0;
 
   // array
   doc["cX"][0] = calMax[0];
@@ -157,6 +160,8 @@ bool saveProfile(const char* path, const Profile& p) {
 
   DynamicJsonDocument doc(3072);
 
+  doc["version"] = 1;
+
   doc["pt"] = 2;
   doc["um"] = p.usbMode;
   doc["bl"] = p.ble;
@@ -297,7 +302,10 @@ bool sysSave() {
   if (!file) return false;
   DynamicJsonDocument doc(64);
   doc["cp"] = configPath;
+  doc["mp"] = mappingPath;
   doc["sr"] = systemReset;
+  doc["um"] = usbMode;
+  doc["bt"] = withBLE;
   if (serializeJsonPretty(doc, file) == 0) {
     file.close();
     return false;
@@ -319,6 +327,12 @@ bool sysLoad() {
     const char* data = doc["cp"].as<const char*>();
     if (data) configPath = String(data);
   }
+  if (doc["mp"].is<const char*>()) {
+    const char* data = doc["mp"].as<const char*>();
+    if (data) mappingPath = String(data);
+  }
+  usbMode = doc["um"] | usbMode;
+  withBLE = doc["bt"] | withBLE;
   if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }

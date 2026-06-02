@@ -1151,9 +1151,15 @@ void connectMenu() {
       while (subSel != 0) {
         String usbItems =
           "Status: " + String(tud_ready() ? "[OK]" : "[Offline]") + "\n"
-          + "Always Report: " + String(alwaysReport ? "[On]" : "[Off]") + "\n"
-          + "Polling Rate: " + String(1000000 / LOOP_INTERVAL_US) + " Hz";
-        //  + "Layout: " + layoutName[layoutType]; // moved because this can also be used on ble hid
+          "Always Report: " + String(alwaysReport ? "[On]" : "[Off]") + "\n"
+          "Polling Rate: " + String(1000000 / LOOP_INTERVAL_US) + " Hz\n"
+          "Mode: ";
+        switch (usbMode) {
+        case 0: usbItems += "Keyboard"; break;
+        case 1: usbItems += "Gamepad"; break;
+        case 2: usbItems += "Mouse"; break;
+        default: break;
+        }
         subSel = u8g2.userInterfaceSelectionList("USB HID", subSel, usbItems.c_str());
         if (subSel == 1) {
           u8g2.clearBuffer();
@@ -1199,6 +1205,23 @@ void connectMenu() {
               break;
             }
             default: break;
+          }
+        }
+        if (subSel == 4) {
+          int cMode = usbMode;
+          const char mMenu[] = 
+          "Keyboard\n"
+          "Gamepad\n"
+          "Mouse";
+          cMode = u8g2.userInterfaceSelectionList("USB Mode", cMode + 1, mMenu) - 1;
+          if (cMode != usbMode) {
+            int wopt = u8g2.userInterfaceMessage("Noicte", "USB Mode apply", "after restart", " Cancel \n Ok \n Restart");
+            switch (wopt) {
+              case 1: break;
+              case 2: usbMode = cMode; sysSave(); break;
+              case 3: usbMode = cMode; sysSave(); forceReset();
+              default: break;
+            }
           }
         }
       }

@@ -38,6 +38,8 @@ Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);
 Adafruit_NeoPixel b = Adafruit_NeoPixel(3, 11, NEO_GRB + NEO_KHZ800);
 
 HIDkeyboard dev;
+HIDgamepad gdev;
+HIDmouse mdev;
 MPU6050 mpu(Wire);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
   U8G2_R0,
@@ -107,6 +109,10 @@ uint32_t lastLoopTime = 0;
 bool fromMenu = false;
 String btName = "Mufuki";
 
+int rate = 0;
+int lastRate = 0;
+unsigned long lastRateCheckUpdate = 0;
+
 void screenSaver(const char* title) {
   u8g2.clearBuffer();
   if (logoType > 1 && logoType < 12) {
@@ -125,4 +131,10 @@ void screenSaver(const char* title) {
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
   }
   u8g2.sendBuffer();
+}
+
+void forceReset() {
+  esp_task_wdt_init(1, true);
+  esp_task_wdt_add(NULL);
+  while (true) {}
 }

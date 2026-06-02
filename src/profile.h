@@ -12,6 +12,7 @@ bool saveProfile(const char* path, const Profile& p);
 bool loadProfile(const char* path, Profile& p);
 
 extern String configPath;
+extern String mappingPaht;
 extern bool systemReset;
 
 bool sysSave();

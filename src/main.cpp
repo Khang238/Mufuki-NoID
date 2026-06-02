@@ -14,12 +14,6 @@ int max(int a, int b) {
   return (a > b) ? a : b;
 }
 
-void forceReset() {
-  esp_task_wdt_init(1, true);
-  esp_task_wdt_add(NULL);
-  while (true) {}
-}
-
 void otaUpdate() {
   static uint8_t spinnerIndex = 0;
   static bool doingOTA = true;
@@ -92,23 +86,6 @@ void otaUpdate() {
     delay(100);
   }
   forceReset();
-}
-
-void importantDebug() {// use in case i messed up the wiring and need to quickly check something without going through the menu
-  while (true) {
-    updateInput();
-    u8g2.clearBuffer();
-    // draw 4 buttons
-    for (int i = 0; i < 4; i++) {
-      if (digitalRead(btnPins[i]) == LOW) {
-        u8g2.drawStr(0, 10 + i * 10, ("Btn " + String(i) + " pressed").c_str());
-      } else {
-        u8g2.drawStr(0, 10 + i * 10, ("Btn " + String(i) + " released").c_str());
-      }
-    }
-    u8g2.sendBuffer();
-    delay(100);
-  }
 } 
 
 void clearDisk() {
@@ -134,12 +111,15 @@ void clearDisk() {
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Disk..."))/2, 28, "Clearing Disk...");
   u8g2.sendBuffer();
-  while (file) {
-    String fname = file.name();
-    file.close();
-    LittleFS.remove(fname);
-    file = root.openNextFile();
+  LittleFS.end();
+
+  if (LittleFS.format()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Clear"))/2, 28, "Clear");
+    delay(1000);
   }
+
+  LittleFS.begin();
 }
 
 void tset() {
@@ -155,11 +135,6 @@ void tset() {
       default: break;
     }
   }
-}
-
-Profile idk = {};
-void genMap() {
-
 }
 
 void mainMenu() {
@@ -297,7 +272,12 @@ void setup() {
   if (!loadConfig(configPath.c_str())) {
     saveConfig(configPath.c_str()); // fallback to default
   }
-  dev.begin();
+  switch (usbMode) {
+    case 0: dev.begin(); break;
+    case 1: gdev.begin(); break;
+    case 2: mdev.begin(); break;
+    default: dev.begin(); break;
+  }
   waitIDLE = millis();
     if (rgb) {
     l.setBrightness(rgbBri);
@@ -307,18 +287,25 @@ void setup() {
     l.setBrightness(0);
     l.show();
   }
+  mpu.calcOffsets();
 }
-
-int rate = 0;
-int lastRate = 0;
-unsigned long lastRateCheckUpdate = 0;
-unsigned long lastIo0Hold = 0;
-bool io0Hold = false;
 
 void loop() {
 
   if (micros() - lastLoopTime < LOOP_INTERVAL_US) return;
   lastLoopTime += LOOP_INTERVAL_US;
+
+  updateInput();
+  mpu.update();
+  
+  if (tud_ready()) {
+    switch (usbMode) {
+      case 0: handleKeypad(); break;
+      case 1: handleGamepad(); break;
+      case 2: handleMouse(); break;
+      default: handleKeypad(); break;
+    }
+  }
 
   // F4 Key (Menu)
   if (digitalRead(btnPins[3]) == LOW) {
@@ -342,26 +329,6 @@ void loop() {
     }
     fromMenu = false;
     bt4Hold = false;
-  }
-
-  // Input Handling
-  switch (inputHandler) {
-    case 0: inputTypeDigitalEmulation(); break;
-    case 1: inputTypeHysteresisHandling(); break;
-    case 2: inputTypeDynamicActuation(); break;
-    default: inputTypeDigitalEmulation(); break;
-  }
-  if (alwaysReport) needReport = true;
-
-  // USB Report
-  if (tud_ready() || alwaysReport) {
-    if (needReport) {
-      uint8_t keycodes[6] = {0};
-      uint8_t idx = 0;
-      for (int i = 0; i < 6; i++)
-        if (nowPress[i]) keycodes[idx++] = layout[i];
-      tud_hid_keyboard_report(dev.report_id, 0, keycodes);
-    }
   }
 
   // Effects
@@ -419,43 +386,12 @@ void loop() {
 
   // Screen
   if (millis() - waitIDLE < screenSaveDuration) {
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_5x8_mf);
-    IPAddress ip = WiFi.localIP();
-    u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
-    if (WiFi.status() != WL_CONNECTED)
-      u8g2.drawStr(0, 18, "WiFi: [Off]");
-    else u8g2.drawStr(0, 18, ("Device ip: " + ip.toString()).c_str());
-    switch (inputHandler) {
-      case 0:
-        u8g2.drawStr(0, 26, "Input: Digital Emulation");
-        u8g2.drawStr(0, 34, ("Actuation: " + String(actuation)).c_str());
-        break;
-      case 1:
-        u8g2.drawStr(0, 26, "Input: Hysteresis Handling");
-        u8g2.drawStr(0, 34, ("Upper: " + String(upperThreshold)).c_str());
-        u8g2.drawStr(0, 42, ("Lower: " + String(lowerThreshold)).c_str());
-        break;
-      case 2:
-        u8g2.drawStr(0, 26, "Input: Dynamic Actuation");
-        u8g2.drawStr(0, 34, ("Window Size: " + String(windowSize)).c_str());
-        // The foot value is dynamic, so not display it
-        break;
-      default: u8g2.drawStr(0, 26, "Input: Digital Emulation"); break;
+    switch (usbMode) {
+      case 0: keypadMUI(); break;
+      case 1: gamepadMUI(); break;
+      case 2: mouseMUI(); break;
+      default: keypadMUI(); break;
     }
-    u8g2.drawStr(0, 40, ("update rate: " + String(lastRate) + "r/s").c_str());
-    //float maxPress = 0.00;
-    for (int i = 0; i < 3; i++) {
-      if (hallVal[i] > 0.05) waitIDLE = millis();
-      u8g2.drawFrame(43 * i - 1, 55, 44, 10);
-      u8g2.drawBox(43 * i, 55, (int)(hallVal[i] * 43), 10);
-      u8g2.setDrawColor(2);
-      String line = String(hallVal[i], 2);
-      u8g2.drawStr(1 + 43 * i, 63, line.c_str());
-      u8g2.setDrawColor(1);
-      //maxPress = max(maxPress, hallVal[i]);
-    }
-    u8g2.sendBuffer();
   }
   else if (millis() - waitIDLE < screenSaveDuration + screenOffDuration) {
     if (!screenWait) {
