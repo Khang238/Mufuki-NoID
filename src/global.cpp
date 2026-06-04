@@ -1,6 +1,6 @@
 #include "global.h"
 
-const String ver = "v2.0.0";
+const String ver = "v2.1.2";
 
 int  usbMode = 0;
 bool withBLE = false;
