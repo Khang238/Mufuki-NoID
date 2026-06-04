@@ -15,6 +15,8 @@ void pushGraphValue(float val);
 
 void drawGraph(int x, int y);
 
+float valueSet(const char *title, float input, bool clamp = false, float clampMin = -255, float clampMax = 255);
+
 void calibMenu();
 
 void inputMenu();
@@ -37,7 +39,9 @@ void splScreen(const char* title, const char* t1, const char* t2, const char* bt
 
 void firstTimeSetup();
 
-void otherMenu();
+void fomartFS();
+
+void systemMenu();
 
 void about();
 

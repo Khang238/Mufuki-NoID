@@ -52,7 +52,7 @@ void otaUpdate() {
     })
     .onEnd([]() {
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub20_tf);
+      u8g2.setFont(u8g2_font_spleen16x32_mr);
       u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
       u8g2.setFont(u8g2_font_gulim11_t_korean1);
       u8g2.drawStr((128 - u8g2.getStrWidth("Restarting..."))/2, 54, "Restarting...");
@@ -88,66 +88,17 @@ void otaUpdate() {
   forceReset();
 } 
 
-void clearDisk() {
-  int opt = u8g2.userInterfaceMessage(
-    "Clear Disk",
-    "Continute at your",
-    "own risk",
-    " Yes \n No "
-  );
-  if (opt != 1) return;
-  File root = LittleFS.open("/");
-  if (!root || !root.isDirectory()) {
-    u8g2.clearBuffer();
-    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
-    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
-    u8g2.sendBuffer();
-    delay(1000);
-    return;
-  }
-
-  File file = root.openNextFile();
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
-  u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Disk..."))/2, 28, "Clearing Disk...");
-  u8g2.sendBuffer();
-  LittleFS.end();
-
-  if (LittleFS.format()) {
-    u8g2.clearBuffer();
-    u8g2.drawStr((128 - u8g2.getStrWidth("Clear"))/2, 28, "Clear");
-    delay(1000);
-  }
-
-  LittleFS.begin();
-}
-
-void tset() {
-  const char testMenu[] =
-    "Profile V2\n"
-    "Reset/Clear all";
-  int sel = 1;
-  while (sel > 0) {
-    sel = u8g2.userInterfaceSelectionList("Test Menu", sel, testMenu);
-    switch (sel) {
-      case 1: testProfilev2(); break;
-      case 2: clearDisk(); break;
-      default: break;
-    }
-  }
-}
-
 void mainMenu() {
   const char menu_items[] =
     "Calibration\n"
     "Input handling\n"
     "Filter\n"
-    "Effects\n"
+    "Mapping\n"
     "Connection\n"
-    "Other\n"
+    "Effects\n"
+    "System\n"
     "OTA Update\n"
-    "About\n"
-    "Experimental";
+    "About";
 
   if (analogLed) {
     for (int i = 0; i < 3; i++) ledcWrite(i, 0);
@@ -159,7 +110,7 @@ void mainMenu() {
   l.show();
   u8g2.clearBuffer();
   u8g2.setPowerSave(0);
-  u8g2.setFont(u8g2_font_fub20_tf);
+  u8g2.setFont(u8g2_font_spleen16x32_mr);
   u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   u8g2.drawStr((128 - u8g2.getStrWidth("Main Menu"))/2, 54, "Main Menu");
@@ -173,10 +124,11 @@ void mainMenu() {
       case 1: calibMenu(); break;
       case 2: inputMenu(); break;
       case 3: filtMenu(); break;
-      case 4: effectMenu(); break;
+      case 4: editMapping(prf); break;
       case 5: connectMenu(); break;
-      case 6: otherMenu(); break;
-      case 7:
+      case 6: effectMenu(); break;
+      case 7: systemMenu(); break;
+      case 8:
         if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {;
           while (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {
             int c = u8g2.userInterfaceMessage(
@@ -192,8 +144,7 @@ void mainMenu() {
         }
         otaUpdate();
         break;
-      case 8: about(); break;
-      case 9: tset(); break;
+      case 9: about(); break;
       default:
         break;
     }
@@ -231,6 +182,10 @@ void setup() {
   u8g2.setFontMode(1);
   u8g2.enableUTF8Print();
   u8g2.setFontRefHeightAll();
+  u8g2.setFont(u8g2_font_spleen32x64_mr);
+  const char *NoID = "NoID";
+  u8g2.drawStr((128 - u8g2.getStrWidth(NoID))/2, 56, NoID);
+  u8g2.sendBuffer();
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   l.fill(l.Color(255, 255, 0));
   l.show();
@@ -269,8 +224,8 @@ void setup() {
   if (!sysLoad()) {
     firstTimeSetup(); // definitely first time
   }
-  if (!loadConfig(configPath.c_str())) {
-    saveConfig(configPath.c_str()); // fallback to default
+  if (!loadProfileVer(configPath.c_str(), prf)) {
+    saveProfileVer(configPath.c_str(), prf); // fallback to default
   }
   switch (usbMode) {
     case 0: dev.begin(); break;
@@ -288,6 +243,7 @@ void setup() {
     l.show();
   }
   mpu.calcOffsets();
+  u8g2.setContrast(screenBri);
 }
 
 void loop() {
@@ -296,7 +252,7 @@ void loop() {
   lastLoopTime += LOOP_INTERVAL_US;
 
   updateInput();
-  mpu.update();
+  if (usbMode != 0) mpu.update();
   
   if (tud_ready()) {
     switch (usbMode) {
@@ -313,6 +269,7 @@ void loop() {
       bt4Hold = true;
       bt4time = millis();
     }
+    if (millis() - bt4time > 250 && bt4Hold) mpu.calcOffsets();
     if (millis() - bt4time > 500 && bt4Hold) {mainMenu(); waitIDLE = millis(); fromMenu = true;}
     if (screenOff) u8g2.setPowerSave(0);
     screenWait = false;
@@ -408,9 +365,9 @@ void loop() {
     }
   }
   rate++;
-  if (millis() - lastRateCheckUpdate > 1000) {
+  if (millis() - lastRateCheckUpdate > 5000) {
     lastRateCheckUpdate = millis();
-    lastRate = rate;
+    lastRate = rate / 5;
     rate = 0;
   }
 }

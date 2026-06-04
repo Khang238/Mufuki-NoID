@@ -35,6 +35,7 @@ extern const String ver;
 
 extern int  usbMode;
 extern bool withBLE;
+extern int profileVersion;
 
 extern Adafruit_NeoPixel l;
 extern Adafruit_NeoPixel b;

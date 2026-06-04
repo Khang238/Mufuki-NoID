@@ -44,7 +44,7 @@ void mgp() {
     g.sendReport();
     if (millis() - waitIDLE < screenSaveDuration) {
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_5x8_mf);
+      u8g2.setFont(u8g2_font_5x8_tr);
       u8g2.drawStr(0, 12, "BLE Mode [Gamepad]");
       l.fill(l.Color(0, 255, 255));
       if (!g.isConnected()) {u8g2.drawStr(0, 20, "Not Connected"); l.fill(l.Color(255, 0, 0));}

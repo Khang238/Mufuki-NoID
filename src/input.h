@@ -1,5 +1,6 @@
 #pragma once
 #include "global.h"
+#include "profile.h"
 
 extern float y[3];
 
@@ -40,3 +41,15 @@ void setupMorse();
 extern bool morseMode;
 
 String keyboard(String text);
+
+void keypadMUI();
+
+void mouseMUI();
+
+void gamepadMUI();
+
+void handleKeypad();
+
+void handleMouse();
+
+void handleGamepad();

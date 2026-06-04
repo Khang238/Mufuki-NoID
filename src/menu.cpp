@@ -27,6 +27,63 @@ void drawGraph(int x, int y) {
   }
 }
 
+float valueSet(const char *title, float input, bool clamp, float clampMin, float clampMax) {
+  #define SMTH_WAIT 150
+  #define SMTH_FACC 1500
+  #define SMTH_FAHH 5000
+  unsigned long htA = 0, htB = 0, adw = 0;
+  bool hlA = false, hlB = false;
+  float sVal = input;
+  while (!digitalRead(btnPins[2])) delay(10);
+  while (true) {
+    updateInput();
+    if (digitalRead(btnPins[0])) hlA = false;
+    if (digitalRead(btnPins[2])) hlB = false;
+    if (!digitalRead(btnPins[0]) && !digitalRead(btnPins[2])) {}
+    else if (!digitalRead(btnPins[0])) {
+      if (!hlA) {htA = millis(); hlA = true;}
+      if (millis() - adw > SMTH_WAIT) {
+        adw = millis() + ((millis() - htA < SMTH_FACC) ? 0 : SMTH_WAIT);
+        input += (millis() - htA < SMTH_FAHH ? 0.01 : 0.81);
+      }
+    }
+    else if (!digitalRead(btnPins[2])) {
+      if (!hlB) {htB = millis(); hlB = true;}
+      if (millis() - adw > SMTH_WAIT) {
+        adw = millis() + ((millis() - htB < SMTH_FACC) ? 0 : SMTH_WAIT);
+        input -= (millis() - htB < SMTH_FAHH ? 0.01 : 0.81);
+      }
+    }
+    input += hallVal[2] - hallVal[0]; // fine-tune with hall input
+    if (nowPress[1]) input = round(input); // snap to integer
+    if (clamp) input = constrain(input, clampMin, clampMax);
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    if (!digitalRead(btnPins[1])) {while (!digitalRead(btnPins[1])) delay(10); return input;}
+    if (!digitalRead(btnPins[3])) {while (!digitalRead(btnPins[3])) delay(10); return sVal;}
+
+    u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 12, title);
+    String tmp = String(input, 2);
+    bool toNeg = hallVal[0] > hallVal[2];
+    int smth = (int)((hallVal[2] - hallVal[0]) * 40);
+    if (fabs(hallVal[2] - hallVal[0]) > 0.0) {
+      u8g2.drawStr(64 + (int)((hallVal[2] - hallVal[0]) * 46) - 3, 52, toNeg ? "-" : "+");
+      if (toNeg) u8g2.drawBox(64 + smth, 44, abs(smth), 8); 
+      else       u8g2.drawBox(64, 44, abs(smth), 8);
+    }
+    u8g2.setFont(u8g2_font_fub20_tf);
+    u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 40, tmp.c_str());
+    u8g2.setFont(u8g2_font_5x8_tr);
+    if (clamp) {
+      tmp = "Range: " + String(clampMin, 2) + " to " + String(clampMax);
+    } else {
+      tmp = "[no limit]";
+    }
+    u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 64, tmp.c_str());
+    u8g2.sendBuffer();
+  }
+}
+
 void calibMenu() {
   bool running = true;
   bool calib = false;
@@ -94,7 +151,7 @@ void calibMenu() {
     u8g2.drawStr(0, 24, ("+ " + String((int)calMax[nowCal])).c_str());
     u8g2.drawStr(0, 35, ("p " + String((int)rawVal[nowCal])).c_str());
     u8g2.drawStr(0, 46, ("- " + String((int)calMin[nowCal])).c_str());
-    u8g2.setFont(u8g2_font_5x8_mf);
+    u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(hallVal[nowCal]).c_str());
     u8g2.drawStr(0, 56, "F1: Last"); u8g2.drawStr(50, 56, calib ? "F2: Stop Calib" : "F2: Calibrate");
     u8g2.drawStr(0, 64, "F3: Next"); u8g2.drawStr(50, 64, "F4: Exit");
@@ -176,7 +233,7 @@ void inputMenu() {
         inputTypeDigitalEmulation();
         break;
     }
-    u8g2.setFont(u8g2_font_5x8_mf);
+    u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxPress).c_str());
     switch (inputHandler) {
       case 0:
@@ -283,7 +340,7 @@ void filtMenu() {
     u8g2.drawStr(0, 24, ("1 " + String((int)rawVal[0])).c_str());
     u8g2.drawStr(0, 35, ("2 " + String((int)rawVal[1])).c_str());
     u8g2.drawStr(0, 46, ("3 " + String((int)rawVal[2])).c_str());
-    u8g2.setFont(u8g2_font_5x8_mf);
+    u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxHall).c_str());
     u8g2.drawStr(0, 56, filterType == 0 ? "> F1: OV" : "F1: OV"); u8g2.drawStr(50, 56, doFilter ? "F2: Disable" : "F2: Enable");
     u8g2.drawStr(0, 64, filterType == 1 ? "> F3: AV" : "F3: AV"); u8g2.drawStr(50, 64, "F4: Exit");
@@ -359,11 +416,13 @@ void effectMenu() {
         }
         subSel = u8g2.userInterfaceSelectionList("RGB Led", subSel, menuElements.c_str());
         if (subSel == 1) rgb = !rgb;
-        if (subSel == 2) u8g2.userInterfaceInputValue("Brightness\n", "(0 - 255): ", &rgbBri, 0, 255, 3, " ");
+        if (subSel == 2) rgbBri = (uint8_t)valueSet("Brightness", rgbBri, true, 0, 255);
+        // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &rgbBri, 0, 255, 3, " ");
         if (subSel == 3) doRainbow = !doRainbow;
         if (subSel == 4) {
           if (doRainbow) {
-            u8g2.userInterfaceInputValue("Speed\n", "(1 - 255): ", &rainbowStep, 1, 255, 3, " ");
+            //u8g2.user.InterfaceInputValue("Speed\n", "(1 - 255): ", &rainbowStep, 1, 255, 3, " ");
+            rainbowStep = (uint8_t)valueSet("Speed", rainbowStep, true, 1, 255);
           } else {
             int sub2Sel = 1;
             while (sub2Sel != 0) {
@@ -372,13 +431,13 @@ void effectMenu() {
                 + "G: " + String(color[1]) + "\n"
                 + "B: " + String(color[2]);
               sub2Sel = u8g2.userInterfaceSelectionList("Color\n", sub2Sel, colorElements.c_str());
-              if (sub2Sel == 1) u8g2.userInterfaceInputValue("Red\n", "(0 - 255): ", &color[0], 0, 255, 3, " ");
-              else if (sub2Sel == 2) u8g2.userInterfaceInputValue("Blue\n", "(0 - 255): ", &color[1], 0, 255, 3, " ");
-              else if (sub2Sel == 3) u8g2.userInterfaceInputValue("Green\n", "(0 - 255): ", &color[2], 0, 255, 3, " ");
+              if (sub2Sel == 1) color[0] = (uint8_t)valueSet("Red", color[0], true, 0, 255);
+              else if (sub2Sel == 2) color[1] = (uint8_t)valueSet("Blue", color[1], true, 0, 255);
+              else if (sub2Sel == 3) color[2] = (uint8_t)valueSet("Green", color[2], true, 0, 255);
             }
           }
         }
-        if (subSel == 5) u8g2.userInterfaceInputValue("Interval\n(10ms - 2550ms)\n", "(n x 10ms): ", &rgbInterval, 1, 255, 3, "n");
+        if (subSel == 5) rgbInterval = (uint8_t)valueSet("Interval", rgbInterval, true, 1, 255);
       }
     }
   }
@@ -420,7 +479,7 @@ void displaySetting() {
     else
       menuItem += "Icon: \"" + String(kaoOrSomethingIdk[logoType - 1]) + "\"";
     subSel = u8g2.userInterfaceSelectionList("Display", subSel, menuItem.c_str());
-    if (subSel == 1) {u8g2.userInterfaceInputValue("Brightness (0 - 255)", " ", &screenBri, 0, 255, 3, " "); u8g2.setContrast(screenBri);}
+    if (subSel == 1) {screenBri = (uint8_t)valueSet("Brightness", screenBri, true, 0, 255); u8g2.setContrast(screenBri);}
     if (subSel == 2) {
       switch (u8g2.userInterfaceSelectionList("Screen on", 1, lazyAss)) {
         case 1: screenSaveDuration = 1000; screenOffDuration += 1000; break;
@@ -594,7 +653,7 @@ void showDebug() {
   bool running = true;
   int page = 0;
   const int pages = 5;
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   while (running) {
     u8g2.clearBuffer();
     updateInput();
@@ -753,9 +812,7 @@ void deadCalib() {
       );
     }
     else if (option == 2) {
-      uint8_t dz = deadZone;
-      u8g2.userInterfaceInputValue("Set Dead Zone", " ", &dz, 0, 255, 3, " ");
-      deadZone = dz;
+      deadZone = (int)valueSet("Dead Zone", deadZone, true, 0, 4095);
     }
   }
   u8g2.userInterfaceMessage(
@@ -813,7 +870,7 @@ void firstTimeSetup() {
   splScreen("Buttons", "F1: Up     F2: OK", "F3: Down  F4:Back", " Next ");
   splScreen("Switches", "SW1 to SW3", "with hall sensors", " Next ");
   splScreen("Switches", "Calibrate?", "", "", false, false);
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: OK");
   u8g2.drawStr(0, 64, "F2: Skip");
   u8g2.sendBuffer();
@@ -827,7 +884,7 @@ void firstTimeSetup() {
     delay(10);
   }
   splScreen("Switches", "Use recommended", "settings and done?", "", false, false);
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: OK");
   u8g2.drawStr(0, 64, "F2: Continue");
   u8g2.sendBuffer();
@@ -852,7 +909,7 @@ void firstTimeSetup() {
     delay(10);
   }
   splScreen("Input Handler", "Now: Digital Emulation", "Actuation: 0.3", "", false, false);
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: Change");
   u8g2.drawStr(0, 64, "F2: Skip");
   u8g2.sendBuffer();
@@ -866,7 +923,7 @@ void firstTimeSetup() {
     delay(10);
   }
   splScreen("Noise Filter", "Help stabilize input", "Now: Off", "", false, false);
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: Change");
   u8g2.drawStr(0, 64, "F2: Skip");
   u8g2.sendBuffer();
@@ -880,7 +937,7 @@ void firstTimeSetup() {
     delay(10);
   }
   splScreen("Effects", "To show off ig?", "Now: All Off", "", false, false);
-  u8g2.setFont(u8g2_font_5x8_mf);
+  u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: Change");
   u8g2.drawStr(0, 64, "F2: Skip");
   u8g2.sendBuffer();
@@ -900,25 +957,58 @@ void firstTimeSetup() {
   splScreen("Setup Done!", "You can hold F4", "to enter menu");
 }
 
-void otherMenu() {
+void fomartFS() {
+  int opt = u8g2.userInterfaceMessage(
+    "Warning!",
+    "Clear all files and",
+    "restart device?",
+    " Yes \n No "
+  );
+  if (opt != 1) return;
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return;
+  }
+
+  File file = root.openNextFile();
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Disk..."))/2, 28, "Clearing Disk...");
+  u8g2.sendBuffer();
+  LittleFS.end();
+
+  if (LittleFS.format()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Clear"))/2, 28, "Clear");
+    delay(1000);
+  }
+  forceReset();
+}
+
+void systemMenu() {
   int sel = 1;
   const char menuItems[] =
     "Display\n"
     "Deadzone Calibrate\n"
     "Profiles\n"
     "MPU\n"
-    "Web App\n"
+    "Reset\n"
     "Debug"
   ;
   while (sel != 0) {
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    sel = u8g2.userInterfaceSelectionList("Other", sel, menuItems);
+    sel = u8g2.userInterfaceSelectionList("System", sel, menuItems);
     switch (sel) {
       case 1: displaySetting(); break;
       case 2: deadCalib(); break;
       case 3: profileMenu(); break;
       case 4: mpuMenu(); break;
-      case 5: firstTimeSetup(); break;
+      case 5: fomartFS(); break;
       case 6: showDebug(); break;
       default: break;
     }
@@ -995,7 +1085,7 @@ void wifiConnectScreen() { // separate function to save flash
     for (int i = 0; i < (int)(millis() / 500 % 4); i++) conDot += ".";
     u8g2.drawStr((128 - u8g2.getStrWidth(conDot.c_str()))/2, 48, conDot.c_str());
     if (millis() - beginTime > 5000) {
-      u8g2.setFont(u8g2_font_5x8_mf);
+      u8g2.setFont(u8g2_font_5x8_tr);
       String tmp = "C" + String((int)WiFi.status()) + ", " + String((millis() - beginTime) / 1000) + "s/60s, F4 to abort";
       u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 62, tmp.c_str());
     }

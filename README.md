@@ -1,32 +1,19 @@
 # Mufuki Project
 
-## Attention!
-This Version might not be stable!
-
-## Short Story
-I just rebuilt the project (physicaly) so this version will use ws2182b as underglow leds instead of the old analog ones, i still leave the option for analog led so that no one will be left out, but this project will have its own configuration option in the code to choose between the two
-Also, for some reason my esp32 cant connect to wifi, so i might have to leave web app and wifi related features for later.
-It is very high chance that web app will be cancelled to switch to API app because my Mufuki build right now is too unstable in terms of wifi connection, but since API app can cover almost everything (like Game Sense), i think ill try hard to see
-Also im doing a profile v2 so things will be a bit messy for a while, i will clean up after (no promise tho)
-
 ## Updated:
-- Setup Screen
-- WS2812B Adressable LED compatibility
-- Structure code refactor/split to make it more modular and easier to modify
+- Profile V2 with programable mapping system
+- Some fonts have been changed to make it more good looking
+- Extended function (Gamepad and Mouse)
 
-## In progress:
-- Profile V2
-- Flexible mapping system (allow to map any input to any output, with some basic math operation in between)
-- Base structure refactor for profile v2 and new mapping system to work
+## To do:
+- Code cleanup and optimization for macro support
+- Find out how to enable USB COM alongside with USB HID for API App
 
 ## Planing:
 - API App (with config editor, Game Sense, etc)
-- USB CDC functionality for osu! display if posible
+- USB COM functionality for osu! display if posible
 - More effect for the underglow leds since they are rgb now
 - Macro support
-
-## Cancelled:
-- Web App (to switch to API App, if API App is better)
 
 ## Wiring diagram (you can change it btw)
 

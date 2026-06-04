@@ -1,6 +1,6 @@
-#include "global.h"
+#include "input.h"
 
-int overSample(int chan, int samples = 16) {
+int overSample(int chan, int samples) {
   long sum = 0;
   for (int i = 0; i < samples; i++) {
     sum += analogRead(adcPins[chan]);
@@ -9,7 +9,7 @@ int overSample(int chan, int samples = 16) {
 }
 
 float y[] = {0.0, 0.0, 0.0};
-int expoMovAvr(int chan, float alpha = 0.05) {
+int expoMovAvr(int chan, float alpha) {
   float x = analogRead(adcPins[chan]);
   y[chan] = y[chan] + alpha * (x - y[chan]);
   return y[chan];
@@ -112,14 +112,6 @@ int getButton() {
   }
   return -1;
 }
-
-// very unnecessary important code for morse code input, because who tf REMEMBERS THE WHOLE FUCKING MORSE CODE
-
-struct MorseNode {
-  char letter;
-  MorseNode *dot;
-  MorseNode *dash;
-};
 
 void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text) {
   int cursorX = x;
@@ -316,4 +308,137 @@ String keyboard(String text) {
   doFilter = lastFilterState;
   root = {'\0', nullptr, nullptr}; // destroy the tree to save memory
   return text;
+}
+
+void keypadMUI() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_tenthinguys_tf);
+  // °
+  u8g2.drawLine(64, 0, 64, 34);
+  u8g2.drawLine(0, 18, 128, 18);
+  u8g2.drawLine(0, 34, 128, 34);
+  String tmp = String(temperatureRead(), 1) + String((char)0xB0) + "C";
+  u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 15, tmp.c_str());
+  tmp = String(lastRate) + "rps";
+  u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 15, tmp.c_str());
+  tmp = "Keypad";
+  u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
+
+  switch (inputHandler) {
+    case 0: tmp = "DGE" ; break;
+    case 1: tmp = "HSR"  ; break;
+    case 2: tmp = "DMA"  ; break;
+  }
+  u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
+
+  if (inputHandler == 1) tmp = "Acc: +" + String(upperThreshold, 2) + " -" + String(lowerThreshold, 2);
+  else                   tmp = "Actuation: " + String(inputHandler == 0 ? actuation : windowSize);
+  u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
+
+  //float maxPress = 0.00;
+  u8g2.setFont(u8g2_font_5x8_tr);
+  for (int i = 0; i < 3; i++) {
+    if (hallVal[i] > 0.05) waitIDLE = millis();
+    u8g2.drawFrame(43 * i - 1, 55, 44, 10);
+    u8g2.drawBox(43 * i, 55, (int)(hallVal[i] * 43), 10);
+    u8g2.setDrawColor(2);
+    String line = String(hallVal[i], 2);
+    u8g2.drawStr(1 + 43 * i, 63, line.c_str());
+    u8g2.setDrawColor(1);
+    //maxPress = max(maxPress, hallVal[i]);
+  }
+  u8g2.sendBuffer();
+}
+
+void handleKeypad() {
+  // Input Handling
+  if (alwaysReport) needReport = true;
+
+  // USB Report
+  if (needReport) {
+    uint8_t keycodes[6] = {0};
+    uint8_t idx = 0;
+    for (int i = 0; i < 6; i++)
+      if (nowPress[i]) keycodes[idx++] = layout[i];
+    tud_hid_keyboard_report(dev.report_id, 0, keycodes);
+  }
+}
+
+void mouseMUI() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);
+  u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
+  u8g2.drawStr(0, 18, "Mode: Mouse");
+  u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
+  u8g2.drawFrame(4, 30, 32, 32); // mouse direction
+  int centerX = 20, centerY = 46;
+  int cursorX = centerX + (int)(mos.mouseX * 16 / 127);
+  int cursorY = centerY + (int)(mos.mouseY * 16 / 127);
+  u8g2.drawLine(centerX, centerY, cursorX, cursorY);
+  u8g2.drawBox(cursorX - 1, cursorY - 1, 3, 3);
+  // wheel
+  u8g2.drawFrame(40, 30, 8, 32);
+  if (mos.mouseWheel != 0) {
+    int wheelY = 46 - (int)(mos.mouseWheel * 14 / 16);
+    u8g2.drawLine(44, 46, 44, wheelY);
+    u8g2.drawBox(43, wheelY - 1, 3, 3);
+  }
+  u8g2.sendBuffer();
+}
+
+void handleMouse() {
+  applyMappings(prf, mos);
+  tud_hid_mouse_report(mdev.report_id, mos.mouseButtons, -mos.mouseX, -mos.mouseY, mos.mouseWheel, 0);
+  // mdev.move(mos.mouseX, mos.mouseY);
+}
+
+void gamepadMUI() {
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);
+  u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
+  u8g2.drawStr(0, 18, "Mode: Gamepad");
+  u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
+  u8g2.drawFrame(4, 30, 24, 24); // left stick
+  int centerX = 16, centerY = 42;
+  int cursorX = centerX + (int)(mos.axes[0] * 12 / 127);
+  int cursorY = centerY + (int)(mos.axes[1] * 12 / 127);
+  u8g2.drawLine(centerX, centerY, cursorX, cursorY);
+  u8g2.drawBox(cursorX - 1, cursorY - 1, 3, 3);
+  u8g2.drawFrame(100, 30, 24, 24); // right stick
+  centerX = 112; centerY = 42;
+  cursorX = centerX + (int)(mos.axes[2] * 12 / 127);
+  cursorY = centerY + (int)(mos.axes[3] * 12 / 127);
+  u8g2.drawLine(centerX, centerY, cursorX, cursorY);
+  u8g2.drawBox(cursorX - 1, cursorY - 1, 3, 3);
+  // triggers
+  u8g2.drawFrame(4, 58, 24, 6); // left trigger
+  int fillWidth = (int)(mos.axes[4] * 24 / 127);
+  if (fillWidth > 0) u8g2.drawBox(4, 58, fillWidth, 6);
+  u8g2.drawFrame(100, 58, 24, 6); // right trigger
+  fillWidth = (int)(mos.axes[5] * 24 / 127);
+  if (fillWidth > 0) u8g2.drawBox(100, 58, fillWidth, 6);
+  // buttons
+  for (int y = 0; y < 2; y++) {
+    for (int x = 0; x < 8; x++) {
+      int idx = y * 8 + x;
+      u8g2.drawFrame(34 + x * 8, 30 + y * 8, 6, 6);
+      if (mos.gpButtons & (1 << idx))
+        u8g2.drawBox(34 + x * 8, 30 + y * 8, 6, 6);
+    }
+  }
+  u8g2.sendBuffer();
+}
+
+void handleGamepad() {
+  applyMappings(prf, mos);
+  gdev.sendAll(
+    mos.gpButtons,    // buttons (uint32_t)
+    mos.axes[0],      // x  = LX
+    mos.axes[1],      // y  = LY
+    mos.axes[2],      // z  = RX
+    mos.axes[3],      // rz = RY
+    mos.axes[4],      // rx = LT
+    mos.axes[5],      // ry = RT
+    0                   // hat (D-pad, không dùng → 0)
+  );
 }

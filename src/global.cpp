@@ -1,37 +1,10 @@
-// include all global variables
-
-#include <WiFi.h>
-#include <Wire.h>
-#include <ctype.h>
-#include <Arduino.h>
-#include <U8g2lib.h>
-#include <LittleFS.h>
-#include <BleGamepad.h>
-#include <ArduinoOTA.h>
-//#include <BleMouse.h>
-#include <ArduinoJson.h>
-#include <BleKeyboard.h>
-#include <NimBLEDevice.h>
-#include <MPU6050_light.h>
-#include <Adafruit_NeoPixel.h>
-
-#include "HIDTypes.h"
-#include "sdkconfig.h"
-#include <NimBLEUtils.h>
-#include <NimBLEServer.h>
-#include <NimBLEHIDDevice.h>
-#include <NimBLECharacteristic.h>
-
-#include "esp_task_wdt.h"
-#include "hidkeyboard.h"
-#include "esptinyusb.h"
-#include "keyName.h"
-#include "img.h"
+#include "global.h"
 
 const String ver = "v2.0.0";
 
 int  usbMode = 0;
 bool withBLE = false;
+int profileVersion = 1; // use newer profile
 
 // Hardware objects
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);
@@ -125,7 +98,7 @@ void screenSaver(const char* title) {
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
   }
   else {
-    u8g2.setFont(u8g2_font_fub20_tf);
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
     u8g2.drawStr((128 - u8g2.getStrWidth(screenLogo.c_str()))/2, 40, screenLogo.c_str());
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
