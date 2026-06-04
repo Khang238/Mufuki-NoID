@@ -342,8 +342,8 @@ void filtMenu() {
     u8g2.drawStr(0, 46, ("3 " + String((int)rawVal[2])).c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxHall).c_str());
-    u8g2.drawStr(0, 56, filterType == 0 ? "> F1: OV" : "F1: OV"); u8g2.drawStr(50, 56, doFilter ? "F2: Disable" : "F2: Enable");
-    u8g2.drawStr(0, 64, filterType == 1 ? "> F3: AV" : "F3: AV"); u8g2.drawStr(50, 64, "F4: Exit");
+    u8g2.drawStr(0, 56, filterType == 0 ? "> F1: OVS" : "F1: OV"); u8g2.drawStr(50, 56, doFilter ? "F2: Disable" : "F2: Enable");
+    u8g2.drawStr(0, 64, filterType == 1 ? "> F3: EMA" : "F3: AV"); u8g2.drawStr(50, 64, "F4: Exit");
     pushGraphValue(maxHall);
     drawGraph(40, 14);
       switch (inputHandler) {

@@ -218,7 +218,6 @@ void setup() {
     l.setBrightness(255);
     l.show();
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
-    return;
   }
   if (!sysLoad()) {
     firstTimeSetup(); // definitely first time
