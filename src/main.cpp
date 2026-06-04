@@ -220,7 +220,6 @@ void setup() {
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
     return;
   }
-  //importantDebug(); // yes i messed up :'(
   if (!sysLoad()) {
     firstTimeSetup(); // definitely first time
   }

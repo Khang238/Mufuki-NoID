@@ -682,6 +682,68 @@ static const OutputTarget threshOnlyDstCodes[] = {
 };
 static const int threshOnlyDstCount = 3;
 
+void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc) {
+  int ssel = 1;
+  while (ssel != 0) {
+    String sopt =
+      "Source: " + String(srcLabels[srce]) + "\n"
+      "Min: "    + String(im, 2) + "\n"
+      "Max: "    + String(ix, 2);
+    ssel = u8g2.userInterfaceSelectionList("Input", ssel, sopt.c_str());
+    switch (ssel) {
+      case 1: {
+        String sList = "";
+        for (int i = 0; i < SRC_COUNT; i++)
+          sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
+        int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
+        if (pick > 0) {
+          srce = pick - 1;
+          if (srce < 6)       { im = 0.0f;    ix = 1.0f;   }
+          else if (srce < 9)  { im = -500.0f; ix = 500.0f; }
+          else if (srce < 12) { im = -2.0f;   ix = 2.0f;   }
+          else                { im = -180.0f; ix = 180.0f; }
+        }
+        break;
+      }
+      case 2: im = valueSet("Min Input", im, false/*!imuSrc*/, imuSrc ? -500.0f : 0.0f, ix);  break;
+      case 3: ix = valueSet("Max Input", ix, false/*!imuSrc*/, im, imuSrc ? 500.0f : 1.0f);   break;
+      default: break;
+    }
+  }
+}
+
+void axsOCfg(uint8_t& destIdx, float& om, float& ox) {
+  int ssel = 1;
+  while (ssel != 0) {
+    String sopt =
+      "Target: " + String(axisOnlyDstLabels[destIdx]) + "\n"
+      "Min: "    + String(om, 2) + "\n"
+      "Max: "    + String(ox, 2);
+    ssel = u8g2.userInterfaceSelectionList("Output", ssel, sopt.c_str());
+    switch (ssel) {
+      case 1: {
+        String dList = "";
+        for (int i = 0; i < axisOnlyDstCount; i++)
+          dList += String(axisOnlyDstLabels[i]) + (i < axisOnlyDstCount - 1 ? "\n" : "");
+        int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
+        if (pick > 0) {
+          destIdx = pick - 1;
+          // mouse axes nhỏ hơn gamepad axes
+          OutputTarget dst = axisOnlyDstCodes[destIdx];
+          if (dst == OUT_MOUSE_X || dst == OUT_MOUSE_Y || dst == OUT_MOUSE_WHEEL)
+            { om = -127.0f; ox = 127.0f; }
+          else
+            { om = -127.0f; ox = 127.0f; } // gamepad cũng -127~127
+        }
+        break;
+      }
+      case 2: om = valueSet("Min Output", om, false, -127.0f, ox);  break;
+      case 3: ox = valueSet("Max Output", ox, false, om,  127.0f);  break;
+      default: break;
+    }
+  }
+}
+
 void axsAdd(Profile& p) {
   uint8_t srce = 0, destIdx = 0;  // destIdx → index trong axisOnlyDst
   float im = 0.0f, ix = 1.0f, om = -127.0f, ox = 127.0f;
@@ -709,84 +771,19 @@ void axsAdd(Profile& p) {
     sel = u8g2.userInterfaceSelectionList("Add Axis Map", sel, opts.c_str());
 
     switch (sel) {
-      case 1: { // Input — không đổi
-        int ssel = 1;
-        while (ssel != 0) {
-          String sopt =
-            "Source: " + String(srcLabels[srce]) + "\n"
-            "Min: "    + String(im, 2) + "\n"
-            "Max: "    + String(ix, 2);
-          ssel = u8g2.userInterfaceSelectionList("Input", ssel, sopt.c_str());
-          switch (ssel) {
-            case 1: {
-              String sList = "";
-              for (int i = 0; i < SRC_COUNT; i++)
-                sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
-              int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
-              if (pick > 0) {
-                srce = pick - 1;
-                if (srce < 6)       { im = 0.0f;    ix = 1.0f;   }
-                else if (srce < 9)  { im = -500.0f; ix = 500.0f; }
-                else if (srce < 12) { im = -2.0f;   ix = 2.0f;   }
-                else                { im = -180.0f; ix = 180.0f; }
-              }
-              break;
-            }
-            case 2: im = valueSet("Min Input", im, false/*!imuSrc*/, imuSrc ? -500.0f : 0.0f, ix);  break;
-            case 3: ix = valueSet("Max Input", ix, false/*!imuSrc*/, im, imuSrc ? 500.0f : 1.0f);   break;
-            default: break;
-          }
-        }
-        break;
-      }
-
-      case 2: { // Output — chỉ dùng axisOnlyDst
-        int ssel = 1;
-        while (ssel != 0) {
-          String sopt =
-            "Target: " + String(axisOnlyDstLabels[destIdx]) + "\n"
-            "Min: "    + String(om, 2) + "\n"
-            "Max: "    + String(ox, 2);
-          ssel = u8g2.userInterfaceSelectionList("Output", ssel, sopt.c_str());
-          switch (ssel) {
-            case 1: {
-              String dList = "";
-              for (int i = 0; i < axisOnlyDstCount; i++)
-                dList += String(axisOnlyDstLabels[i]) + (i < axisOnlyDstCount - 1 ? "\n" : "");
-              int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
-              if (pick > 0) {
-                destIdx = pick - 1;
-                // mouse axes nhỏ hơn gamepad axes
-                OutputTarget dst = axisOnlyDstCodes[destIdx];
-                if (dst == OUT_MOUSE_X || dst == OUT_MOUSE_Y || dst == OUT_MOUSE_WHEEL)
-                  { om = -127.0f; ox = 127.0f; }
-                else
-                  { om = -127.0f; ox = 127.0f; } // gamepad cũng -127~127
-              }
-              break;
-            }
-            case 2: om = valueSet("Min Output", om, false, -127.0f, ox);  break;
-            case 3: ox = valueSet("Max Output", ox, false, om,  127.0f);  break;
-            default: break;
-          }
-        }
-        break;
-      }
-
+      case 1: axsICfg(srce, im, ix, imuSrc); break;
+      case 2: axsOCfg(destIdx, om, ox); break;
       case 3: cmp = !cmp; break;
-
       case 4: {
         const char* cmbOpts = "None\nAdd (+)\nSubtract (-)";
         int pick = u8g2.userInterfaceSelectionList("Combine Mode", cmb + 1, cmbOpts);
         if (pick > 0) cmb = pick - 1;
         break;
       }
-
       case 5:
         addAxisMapping(p, (InputSource)srce, axisOnlyDstCodes[destIdx],
                        im, ix, om, ox, cmp, (CombineMode)cmb);
         return;
-
       default: break;
     }
   }
@@ -916,22 +913,8 @@ void editMapping(Profile& p) {
             esel = u8g2.userInterfaceSelectionList("Edit Axis Map", esel, opts.c_str());
             bool imuSrc = (srce >= SRC_GYRO_X);
             switch (esel) {
-              case 1: {
-                String sList = "";
-                for (int i = 0; i < SRC_COUNT; i++)
-                  sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
-                int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
-                if (pick > 0) srce = pick - 1;
-                break;
-              }
-              case 2: {
-                String dList = "";
-                for (int i = 0; i < axisOnlyDstCount; i++)
-                  dList += String(axisOnlyDstLabels[i]) + (i < axisOnlyDstCount - 1 ? "\n" : "");
-                int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
-                if (pick > 0) destIdx = pick - 1;
-                break;
-              }
+              case 1: axsICfg(srce, im, ix, imuSrc); break;
+              case 2: axsOCfg(destIdx, om, ox); break;
               case 3: cmp = !cmp; break;
               case 4: {
                 const char* cmbOpts = "None\nAdd (+)\nSubtract (-)";

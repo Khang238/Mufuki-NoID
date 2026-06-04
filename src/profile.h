@@ -37,6 +37,10 @@ std::vector<String> listProfiles();
 
 void profileMenu();
 
+void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc);
+
+void axsOCfg(uint8_t& dest, float& om, float& ox);
+
 void thrAdd(Profile& p);
 
 void axsAdd(Profile& p);

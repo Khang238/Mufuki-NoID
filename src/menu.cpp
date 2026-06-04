@@ -71,7 +71,7 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
       if (toNeg) u8g2.drawBox(64 + smth, 44, abs(smth), 8); 
       else       u8g2.drawBox(64, 44, abs(smth), 8);
     }
-    u8g2.setFont(u8g2_font_fub20_tf);
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
     u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 40, tmp.c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
     if (clamp) {
@@ -950,7 +950,7 @@ void firstTimeSetup() {
     }
     delay(10);
   }
-  saveConfig(configPath.c_str());
+  saveProfileVer(configPath.c_str(), prf);
   sysSave();
   splScreen("Setup Complete!", "Your device are", "ready to use", " Next ");
   splScreen("Setup Complete!", "Web app also", "available in menu", " Next ");
