@@ -225,6 +225,7 @@ void setup() {
   if (!loadProfileVer(configPath.c_str(), prf)) {
     saveProfileVer(configPath.c_str(), prf); // fallback to default
   }
+  if (usbMode == 1) gdev.deviceID(vpidPair[vpidSet][0], vpidPair[vpidSet][1]);
   switch (usbMode) {
     case 0: dev.begin(); break;
     case 1: gdev.begin(); break;

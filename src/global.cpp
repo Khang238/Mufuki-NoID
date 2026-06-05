@@ -5,6 +5,7 @@ const String ver = "v2.1.4";
 int  usbMode = 0;
 bool withBLE = false;
 int profileVersion = 1; // use newer profile
+int vpidSet = 0;
 
 // Hardware objects
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);

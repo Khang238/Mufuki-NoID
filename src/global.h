@@ -36,6 +36,7 @@ extern const String ver;
 extern int  usbMode;
 extern bool withBLE;
 extern int profileVersion;
+extern int vpidSet;
 
 extern Adafruit_NeoPixel l;
 extern Adafruit_NeoPixel b;
@@ -121,6 +122,13 @@ constexpr uint8_t preLayout[5][6] = {
   {HID_KEY_ARROW_LEFT, HID_KEY_SPACE, HID_KEY_ARROW_RIGHT, HID_KEY_ARROW_UP, HID_KEY_ENTER, HID_KEY_ARROW_DOWN}, // Arrow
   {HID_KEY_COPY, HID_KEY_PASTE, HID_KEY_ESCAPE, HID_KEY_VOLUME_UP, HID_KEY_MUTE, HID_KEY_VOLUME_DOWN}, // Shortcut
   {HID_KEY_ENTER, HID_KEY_SPACE, HID_KEY_BACKSPACE, HID_KEY_ARROW_LEFT, HID_KEY_ARROW_RIGHT, HID_KEY_ESCAPE}, // BLE Keyboard, useful for me
+};
+
+constexpr uint16_t vpidPair[4][2] = {
+  {0x054C, 0x05C4}, // PS4 Controller
+  {0x045E, 0x028E}, // Xbox 360 Controller
+  {0x057E, 0x2009}, // Switch Pro Controller
+  {0x046D, 0xC216}  // Logitech F310
 };
 
 void screenSaver(const char* title);

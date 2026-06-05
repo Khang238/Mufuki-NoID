@@ -1234,6 +1234,7 @@ void connectMenu() {
     "WiFi Settings\n"
     "Keyboard Layout";
   int sel = 1;
+  int vpidChange = vpidSet;
   while (sel != 0) {
     sel = u8g2.userInterfaceSelectionList("Connection", sel, items);
     if (sel == 1) {
@@ -1249,6 +1250,16 @@ void connectMenu() {
         case 1: usbItems += "Gamepad"; break;
         case 2: usbItems += "Mouse"; break;
         default: break;
+        }
+        if (usbMode == 1) {
+          usbItems += "\nVID PID Set: ";
+          switch (vpidChange) {
+            case 0: usbItems += "PS4"; break;
+            case 1: usbItems += "Xbox"; break;
+            case 2: usbItems += "Switch"; break;
+            case 3: usbItems += "Logitech"; break;
+            default: break;
+          }
         }
         subSel = u8g2.userInterfaceSelectionList("USB HID", subSel, usbItems.c_str());
         if (subSel == 1) {
@@ -1314,6 +1325,7 @@ void connectMenu() {
             }
           }
         }
+        if (subSel == 5) vpidChange = (vpidChange + 1) % 4;
       }
     }
     if (sel == 2) {
@@ -1398,6 +1410,15 @@ void connectMenu() {
           }
         }
       }
+    }
+  }
+  if (vpidChange != vpidSet) {
+    int wopt = u8g2.userInterfaceMessage("Noicte", "VID PID apply", "after restart", " Cancel \n Ok \n Restart");
+    switch (wopt) {
+      case 1: break;
+      case 2: vpidSet = vpidChange; sysSave(); break;
+      case 3: vpidSet = vpidChange; sysSave(); forceReset();
+      default: break;
     }
   }
 }

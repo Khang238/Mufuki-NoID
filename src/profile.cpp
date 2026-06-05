@@ -432,6 +432,7 @@ bool sysSave() {
   doc["um"] = usbMode;
   doc["bt"] = withBLE;
   doc["pv"] = profileVersion;
+  doc["vpid"] = vpidSet;
   if (serializeJsonPretty(doc, file) == 0) {
     file.close();
     return false;
@@ -460,6 +461,7 @@ bool sysLoad() {
   usbMode = doc["um"] | usbMode;
   withBLE = doc["bt"] | withBLE;
   profileVersion = doc["pv"] | profileVersion;
+  vpidSet = doc["vpid"] | vpidSet;
   if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }
