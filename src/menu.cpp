@@ -36,7 +36,7 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
   float sVal = input;
   while (!digitalRead(btnPins[2])) delay(10);
   while (true) {
-    updateInput();
+    // updateInput();
     if (digitalRead(btnPins[0])) hlA = false;
     if (digitalRead(btnPins[2])) hlB = false;
     if (!digitalRead(btnPins[0]) && !digitalRead(btnPins[2])) {}
@@ -92,7 +92,7 @@ void calibMenu() {
   else {b.setPixelColor(0, b.Color(255, 255, 255)); b.show();}
   for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
   while (running) {
-    updateInput();
+    // updateInput();
     if (calib) {
       calMin[nowCal] = (calMin[nowCal] < rawVal[nowCal]) ? calMin[nowCal] : rawVal[nowCal];
       calMax[nowCal] = (calMax[nowCal] > rawVal[nowCal]) ? calMax[nowCal] : rawVal[nowCal];
@@ -323,7 +323,7 @@ void filtMenu() {
     graphData[i] = 0;
   }
   while (running) {
-    updateInput();
+    // updateInput();
     float maxHall = max(max(hallVal[0], hallVal[1]), hallVal[2]);
     float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
     int btn = getButton();
@@ -656,7 +656,7 @@ void showDebug() {
   u8g2.setFont(u8g2_font_5x8_tr);
   while (running) {
     u8g2.clearBuffer();
-    updateInput();
+    // updateInput();
     int btn = getButton();
     if (btn == 0) page = (page + (pages - 1)) % pages;
     if (btn == 1) page = (page + 1) % pages;
@@ -900,7 +900,7 @@ void firstTimeSetup() {
       color[0] = 255; 
       color[1] = 1;
       color[2] = 224;
-      saveConfig(configPath.c_str());
+      saveProfile(configPath.c_str(), prf);
       sysSave();
       splScreen("Setup Done!", "You can hold F4", "to enter menu", " Finish ");
       return;
@@ -950,7 +950,7 @@ void firstTimeSetup() {
     }
     delay(10);
   }
-  saveProfileVer(configPath.c_str(), prf);
+  saveProfile(configPath.c_str(), prf);
   sysSave();
   splScreen("Setup Complete!", "Your device are", "ready to use", " Next ");
   splScreen("Setup Complete!", "Web app also", "available in menu", " Next ");
@@ -1051,7 +1051,7 @@ void about() {
   u8g2.sendBuffer();
   uint16_t h = 0;
   while (running) {
-    updateInput();
+    // updateInput();
     for (int i = 0; i < 3; i++) {
       ledOutput[i] = 0;
       if (applyEffect[i]) {

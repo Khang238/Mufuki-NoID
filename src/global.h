@@ -27,6 +27,7 @@
 #include "hidkeyboard.h"
 #include "hidgamepad.h"
 #include "hidmouse.h"
+#include "cdcusb.h"
 #include "esptinyusb.h"
 #include "keyName.h"
 #include "img.h"
@@ -37,6 +38,7 @@ extern int  usbMode;
 extern bool withBLE;
 extern int profileVersion;
 extern int vpidSet;
+extern volatile bool menuOpen;
 
 extern Adafruit_NeoPixel l;
 extern Adafruit_NeoPixel b;
@@ -45,6 +47,8 @@ constexpr bool analogLed = false; // change if using analog LED control
 extern HIDkeyboard dev;
 extern HIDgamepad gdev;
 extern HIDmouse mdev;
+extern CDCusb CDCUSBSerial;
+
 extern MPU6050 mpu;
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
 

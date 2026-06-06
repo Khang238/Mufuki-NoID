@@ -1,11 +1,13 @@
 #include "global.h"
 
-const String ver = "v2.1.4";
+const String ver = "v2.2.7";
 
 int  usbMode = 0;
 bool withBLE = false;
 int profileVersion = 1; // use newer profile
 int vpidSet = 0;
+volatile bool menuOpen = false;
+
 
 // Hardware objects
 Adafruit_NeoPixel l = Adafruit_NeoPixel(1, 48, NEO_RGB + NEO_KHZ800);
@@ -14,6 +16,8 @@ Adafruit_NeoPixel b = Adafruit_NeoPixel(3, 11, NEO_GRB + NEO_KHZ800);
 HIDkeyboard dev;
 HIDgamepad gdev;
 HIDmouse mdev;
+CDCusb CDCUSBSerial;
+
 MPU6050 mpu(Wire);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
   U8G2_R0,

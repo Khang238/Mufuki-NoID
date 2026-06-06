@@ -13,7 +13,7 @@ void mgp() {
   screenWait = false;
   screenOff = false;
   while (running) {
-    updateInput();
+    // updateInput();
     mpu.update();
     int normLx = (int)((hallVal[2] - hallVal[1] + 1.0f) * 16383.5f); // [-1..1] → [0..32767]
     int normLy = (int)((1.00f - hallVal[0]) * 32767.0f);                       // [0..1] → [0..32767]
@@ -194,7 +194,7 @@ void marm() {
   screenOff = false;
 
   while (running) {
-    updateInput();
+    // updateInput();
     mpu.update();
     int mvx = constrain(-mpu.getGyroZ() /  8, -10, 10);
     int mvy = constrain(-mpu.getGyroX()  / 8, -10, 10);
@@ -319,7 +319,7 @@ void mwk() {
   screenWait = false;
   screenOff = false;
   while (running) {
-    updateInput();
+    // updateInput();
     // Report
     if (kb.isConnected()) {
       if (needReport) {

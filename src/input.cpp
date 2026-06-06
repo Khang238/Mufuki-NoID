@@ -246,7 +246,7 @@ String keyboard(String text) {
     String currentCode = "";
     unsigned long lastInputTime = millis();
     while (typing) {
-      updateInput();
+      // updateInput();
       if (applyEffect[0]) { // Dot
         currentCode += currentCode.length() < 8 ? "." : "";
         lastInputTime = millis();

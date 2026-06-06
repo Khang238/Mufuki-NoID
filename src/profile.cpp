@@ -7,157 +7,80 @@ bool systemReset = false;
 Profile prf;
 OutputState mos;
 
-bool saveConfig(const char *path) {
-  File file = LittleFS.open(path, "w");
-  if (!file) return false;
+void unpackProfile(Profile& p) {
 
-  DynamicJsonDocument doc(1024);
+  // Input
+  inputHandler = p.inputHandler;
+  actuation = p.actuation;
+  windowSize = p.windowSize;
+  upperThreshold = p.upperThreshold;
+  lowerThreshold = p.lowerThreshold;
+  for (int i = 0; i < 3; i++) calMax[i] = p.calMax[i];
+  for (int i = 0; i < 3; i++) calMin[i] = p.calMin[i];
+  deadZone = p.deadZone;
+  doFilter = p.doFilter;
+  filterType = p.filterType;
+  for (int i = 0; i < 6; i++) layout[i] = p.layout[i];
 
-  doc["version"] = 0;
+  // Display
+  screenBri = p.screenBri;
+  screenSaveDuration = p.screenSaveDuration;
+  screenOffDuration = p.screenOffDuration;
+  logoType = p.logoType;
+  screenLogo = String(p.screenLogo);
 
-  // array
-  doc["cX"][0] = calMax[0];
-  doc["cX"][1] = calMax[1];
-  doc["cX"][2] = calMax[2];
+  // Effects
+  underGlow = p.underGlow;
+  glowType = p.glowType;
+  rgb = p.rgb;
+  rgbBri = p.rgbBri;
+  for (int i = 0; i < 3; i++) color[i] = p.color[i];
+  doRainbow = p.doRainbow;
+  rainbowStep = p.rainbowStep;
+  rgbInterval = p.rgbInterval;
 
-  doc["cM"][0] = calMin[0];
-  doc["cM"][1] = calMin[1];
-  doc["cM"][2] = calMin[2];
-
-  for (int i = 0; i < 6; i++) {
-    doc["lO"][i] = layout[i];
-  }
-
-  for (int i = 0; i < 3; i++) {
-    doc["rC"][i] = color[i];
-  }
-
-  // int
-  doc["dZ"] = deadZone;
-  doc["fT"] = filterType;
-  doc["iH"] = inputHandler;
-  doc["sS"] = screenSaveDuration;
-  doc["sO"] = screenOffDuration;
-  doc["sB"] = screenBri;
-  doc["lg"] = logoType;
-  doc["gT"] = glowType;
-  doc["rB"] = rgbBri;
-  doc["rS"] = rainbowStep;
-  doc["rI"] = rgbInterval;
-
-  // float
-  doc["aT"] = actuation;
-  doc["uT"] = upperThreshold;
-  doc["lT"] = lowerThreshold;
-  doc["wS"] = windowSize;
-
-  // bool
-  doc["dF"] = doFilter;
-  doc["uG"] = underGlow;
-  doc["rL"] = rgb;
-  doc["dR"] = doRainbow;
-
-  // string
-  doc["bN"] = btName;
-  doc["sL"] = screenLogo;
-
-  if (serializeJsonPretty(doc, file) == 0) {
-    file.close();
-    return false;
-  }
-  file.close();
-  return true;
+  // BLE
+  btName = String(p.btName);
 }
 
-bool loadConfig(const char *path) {
-  File file = LittleFS.open(path, "r");
-  if (!file) return false;
+void packProfile(Profile& p) {
 
-  DynamicJsonDocument doc(1024);
-  DeserializationError error = deserializeJson(doc, file);
-  file.close();
-  if (error) {
-    return false;
-  }
+  // Input
+  p.inputHandler = inputHandler;
+  p.actuation = actuation;
+  p.windowSize = windowSize;
+  p.upperThreshold = upperThreshold;
+  p.lowerThreshold = lowerThreshold;
+  for (int i = 0; i < 3; i++) p.calMax[i] = calMax[i];
+  for (int i = 0; i < 3; i++) p.calMin[i] = calMin[i];
+  p.deadZone = deadZone;
+  p.doFilter = doFilter;
+  p.filterType = filterType;
+  for (int i = 0; i < 6; i++) p.layout[i] = layout[i];
 
-  // array float calMax
-  if (doc["cX"].is<JsonArray>()) {
-    for (int i = 0; i < 3; i++) {
-      calMax[i] = doc["cX"][i] | calMax[i];
-    }
-  }
+  // Display
+  p.screenBri = screenBri;
+  p.screenSaveDuration = screenSaveDuration;
+  p.screenOffDuration = screenOffDuration;
+  p.logoType = logoType;
+  strncpy(p.screenLogo, screenLogo.c_str(), sizeof(p.screenLogo) - 1);
 
-  if (doc["cM"].is<JsonArray>()) {
-    for (int i = 0; i < 3; i++) {
-      calMin[i] = doc["cM"][i] | calMin[i];
-    }
-  }
+  // Effects
+  p.underGlow = underGlow;
+  p.glowType = glowType;
+  p.rgb = rgb;
+  p.rgbBri = rgbBri;
+  for (int i = 0; i < 3; i++) p.color[i] = color[i];
+  p.doRainbow = doRainbow;
+  p.rainbowStep = rainbowStep;
+  p.rgbInterval = rgbInterval;
 
-  if (doc["lO"].is<JsonArray>()) {
-    for (int i = 0; i < 6; i++) {
-      layout[i] = doc["lO"][i] | layout[i];
-    }
-  }
-
-  if (doc["rC"].is<JsonArray>()) {
-    for (int i = 0; i < 3; i++) {
-      color[i] = doc["rC"][i] | color[i];
-    }
-  }
-
-  // int
-  if (doc["rB"].is<int>()) rgbBri = constrain(doc["rB"].as<int>(), 0, 255);
-  if (doc["dZ"].is<int>()) deadZone = constrain(doc["dZ"].as<int>(), 0, 4095);
-  if (doc["lg"].is<int>()) logoType = constrain(doc["lg"].as<int>(), 0, 12);
-  if (doc["gT"].is<int>()) glowType = constrain(doc["gT"].as<int>(), 0, 5);
-  if (doc["sB"].is<int>()) screenBri = constrain(doc["sB"].as<int>(), 0, 255);
-  if (doc["fT"].is<int>()) filterType = constrain(doc["fT"].as<int>(), 0, 2);
-  if (doc["rS"].is<int>()) rainbowStep = doc["rS"].as<int>();
-  if (doc["rI"].is<int>()) rgbInterval = doc["rI"].as<int>();
-  if (doc["iH"].is<int>()) inputHandler = constrain(doc["iH"].as<int>(), 0, 2);
-  if (doc["sO"].is<int>()) screenOffDuration = doc["sO"].as<int>();
-  if (doc["sS"].is<int>()) screenSaveDuration = doc["sS"].as<int>();
-
-  // bool
-  if (doc["rL"].is<bool>()) rgb = doc["rL"].as<bool>();
-  if (doc["dF"].is<bool>()) doFilter = doc["dF"].as<bool>();
-  if (doc["uG"].is<bool>()) underGlow = doc["uG"].as<bool>();
-  if (doc["dR"].is<bool>()) doRainbow = doc["dR"].as<bool>();
-
-  // float
-  if (doc["aT"].is<float>()) {
-    float data = doc["aT"].as<float>();
-    if (data > 0.0f && data < 1.0f) actuation = data;
-  }
-  if (doc["wS"].is<float>()) {
-    float data = doc["wS"].as<float>();
-    if (data > 0.0f && data < 1.0f) windowSize = data;
-  }
-  if (doc["uT"].is<float>()) {
-    float data = doc["uT"].as<float>();
-    if (data > 0.0f && data < 1.0f) upperThreshold = data;
-  }
-  if (doc["lT"].is<float>()) {
-    float data = doc["lT"].as<float>();
-    if (data > 0.0f && data < 1.0f) lowerThreshold = data;
-  }
-
-  // String
-  if (doc["bN"].is<const char*>()) {
-    const char* data = doc["bN"].as<const char*>();
-    if (data) btName = String(data);
-  }
-  if (doc["sL"].is<const char*>()) {
-    const char* data = doc["sL"].as<const char*>();
-    if (data) screenLogo = String(data);
-  }
-
-  return true;
+  // BLE
+  strncpy(p.btName, btName.c_str(), sizeof(p.btName) - 1);
 }
-
-// profile.cpp
 
 bool saveProfile(const char* path, Profile& p) {
+  packProfile(p);
   File file = LittleFS.open(path, "w");
   if (!file) return false;
 
@@ -296,130 +219,8 @@ bool loadProfile(const char* path, Profile& p) {
       else          m.data.threshold = { a, b, c };
     }
   }
-
+  unpackProfile(p);
   return true;
-}
-
-void unpackProfile(Profile& p) {
-
-  // Input
-  inputHandler = p.inputHandler;
-  actuation = p.actuation;
-  windowSize = p.windowSize;
-  upperThreshold = p.upperThreshold;
-  lowerThreshold = p.lowerThreshold;
-  for (int i = 0; i < 3; i++) calMax[i] = p.calMax[i];
-  for (int i = 0; i < 3; i++) calMin[i] = p.calMin[i];
-  deadZone = p.deadZone;
-  doFilter = p.doFilter;
-  filterType = p.filterType;
-  for (int i = 0; i < 6; i++) layout[i] = p.layout[i];
-
-  // Display
-  screenBri = p.screenBri;
-  screenSaveDuration = p.screenSaveDuration;
-  screenOffDuration = p.screenOffDuration;
-  logoType = p.logoType;
-  screenLogo = String(p.screenLogo);
-
-  // Effects
-  underGlow = p.underGlow;
-  glowType = p.glowType;
-  rgb = p.rgb;
-  rgbBri = p.rgbBri;
-  for (int i = 0; i < 3; i++) color[i] = p.color[i];
-  doRainbow = p.doRainbow;
-  rainbowStep = p.rainbowStep;
-  rgbInterval = p.rgbInterval;
-
-  // BLE
-  btName = String(p.btName);
-}
-
-void packProfile(Profile& p) {
-
-  // Input
-  p.inputHandler = inputHandler;
-  p.actuation = actuation;
-  p.windowSize = windowSize;
-  p.upperThreshold = upperThreshold;
-  p.lowerThreshold = lowerThreshold;
-  for (int i = 0; i < 3; i++) p.calMax[i] = calMax[i];
-  for (int i = 0; i < 3; i++) p.calMin[i] = calMin[i];
-  p.deadZone = deadZone;
-  p.doFilter = doFilter;
-  p.filterType = filterType;
-  for (int i = 0; i < 6; i++) p.layout[i] = layout[i];
-
-  // Display
-  p.screenBri = screenBri;
-  p.screenSaveDuration = screenSaveDuration;
-  p.screenOffDuration = screenOffDuration;
-  p.logoType = logoType;
-  strncpy(p.screenLogo, screenLogo.c_str(), sizeof(p.screenLogo) - 1);
-
-  // Effects
-  p.underGlow = underGlow;
-  p.glowType = glowType;
-  p.rgb = rgb;
-  p.rgbBri = rgbBri;
-  for (int i = 0; i < 3; i++) p.color[i] = color[i];
-  p.doRainbow = doRainbow;
-  p.rainbowStep = rainbowStep;
-  p.rgbInterval = rgbInterval;
-
-  // BLE
-  strncpy(p.btName, btName.c_str(), sizeof(p.btName) - 1);
-}
-
-bool saveProfileVer(const char* path, Profile& p) {
-  bool ok = false;
-  switch (profileVersion) {
-    case 0:
-      ok = saveConfig(path);
-      break;
-    case 1:
-      packProfile(p);
-      ok = saveProfile(path, p);
-      break;
-    default:
-      packProfile(p);
-      ok = saveProfile(path, p);
-      break;
-  }
-  return ok;
-}
-
-bool loadProfileVer(const char* path, Profile& p) {
-  bool ok = false;
-  int ver = getProfileVersion(path);
-  if (ver < 0) return false;
-  switch (ver) {
-    case 0:
-      ok = loadConfig(path);
-      break;
-      case 1:
-      ok = loadProfile(path, p);
-      if (ok) unpackProfile(p);
-      break;
-    default:
-      ok = loadProfile(path, p);
-      if (ok) unpackProfile(p);
-      break;
-  }
-  return ok;
-}
-
-int getProfileVersion(const char* path) {
-  File file = LittleFS.open(path, "r");
-  if (!file) return -1;
-
-  DynamicJsonDocument doc(64);
-  DeserializationError err = deserializeJson(doc, file);
-  file.close();
-  if (err) return -1;
-  if (!doc["version"].is<int>()) return -1;
-  return doc["version"].as<int>();
 }
 
 bool sysSave() {
@@ -538,7 +339,7 @@ void profileMenu() {
         int choose = u8g2.userInterfaceSelectionList("Load Profile", 0, subSel.c_str());
         if (choose != 0) {
           String prfName = "/" + profiles[choose - 1];
-          if (loadProfileVer(prfName.c_str(), prf)) {
+          if (loadProfile(prfName.c_str(), prf)) {
             u8g2.userInterfaceMessage("Profile loaded!", prfName.c_str(), "", " Ok ");
           } else {
             u8g2.userInterfaceMessage("Failed to load", prfName.c_str(), "go back and try again", " Ok ");
@@ -590,7 +391,7 @@ void profileMenu() {
               else {
                 if (!prfName.endsWith(".json")) prfName += ".json";
                 prfName = "/" + prfName;
-                if (saveProfileVer(prfName.c_str(), prf)) {
+                if (saveProfile(prfName.c_str(), prf)) {
                   u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
                   seling = false;
                   opt = 0;
@@ -613,7 +414,7 @@ void profileMenu() {
             int choose = u8g2.userInterfaceSelectionList("Replace Profile", 0, subSel.c_str());
             if (choose != 0) {
               prfName = "/" + profiles[choose - 1];
-              if (saveProfileVer(prfName.c_str(), prf)) {
+              if (saveProfile(prfName.c_str(), prf)) {
                 u8g2.userInterfaceMessage("Profile saved!", prfName.c_str(), "", " Ok ");
                 seling = false;
               } else {
