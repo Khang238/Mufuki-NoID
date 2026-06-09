@@ -59,11 +59,13 @@ void mainMenu() {
         "Input Handling\n"
         "Dead Zone";
         while (hSel > 0) {
+          u8g2.setFont(u8g2_font_gulim11_t_korean1);
+          hSel = noidMenu("Hall Settings", hSel, hallSItem);
           switch (hSel) {
-            case 0: calibMenu(); break;
-            case 1: filtMenu(); break;
-            case 2: inputMenu(); break;
-            case 3: deadCalib(); break;
+            case 1: calibMenu(); break;
+            case 2: filtMenu(); break;
+            case 3: inputMenu(); break;
+            case 4: deadCalib(); break;
             default: break;
           }
         }
@@ -96,35 +98,6 @@ class CSCDCCallbacks : public CDCCallbacks {
   }
   void onData() {}
 };
-
-/*
-void hidTask(void* param) {
-  while (true) {
-    if (micros() - lastLoopTime >= LOOP_INTERVAL_US) {
-      lastLoopTime += LOOP_INTERVAL_US;
-      updateInput();
-      if (usbMode != 0) mpu.update();
-      if (tud_ready() && !menuOpen) {
-        switch (usbMode) {
-          case 0: handleKeypad(); break;
-          case 1: handleGamepad(); break;
-          case 2: handleMouse(); break;
-        }
-      }
-      rate++;
-      if (millis() - lastRateCheckUpdate > 1000) {
-        lastRateCheckUpdate = millis();
-        lastRate = rate;
-        rate = 0;
-      }
-    }// else {
-     // delayMicroseconds(LOOP_INTERVAL_US - (micros() - lastLoopTime));
-     //}
-    // vTaskDelay(1); // yield, không block
-    taskYIELD();
-  }
-}
-*/
 
 void hidTask(void* param) {
   TickType_t lastWakeTime = xTaskGetTickCount();
