@@ -26,7 +26,7 @@ struct MorseNode {
 
 void drawWrappedText(U8G2 &u8g2, int x, int y, int maxWidth, const char *text);
 
-int getButton();
+int getButton(bool hold = false);
 
 extern MorseNode root;
 

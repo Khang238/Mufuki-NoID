@@ -84,6 +84,140 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
   }
 }
 
+int countItems(const char* items) {
+  int count = 1;
+  while (*items) {
+    if (*items == '\n')
+      count++;
+    items++;
+  }
+  return count;
+}
+
+bool getItem(const char* items, int index, char* out, size_t outSize) {
+  int current = 0;
+
+  while (*items && current < index) {
+    if (*items == '\n')
+      current++;
+    items++;
+  }
+
+  if (!*items)
+    return false;
+
+  size_t i = 0;
+
+  while (*items && *items != '\n' && i < outSize - 1) {
+    out[i++] = *items++;
+  }
+
+  out[i] = '\0';
+  return true;
+}
+
+int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph, const char* glyph) {
+  while (getButton(true) != -1) {delay(10);}
+  if (startIndex > 0) startIndex--;
+  int selected = startIndex;
+  
+  int count = countItems(list);
+  int fontH = u8g2.getMaxCharHeight();
+  int boxH = fontH + 2;
+  
+  int titleH = (title != nullptr && strlen(title) > 0) ? (fontH + 4) : 0;
+  int viewH = 64 - titleH;
+
+  float selBox = selected * boxH;
+  float windowPos = selBox;
+
+  float maxWindowPos = (count * boxH > viewH) ? (count * boxH - viewH) : 0;
+
+  float lift = 0;
+  const float maxLift = 10;
+
+  unsigned long hldTimer = 0;
+  unsigned long movTimer = 0;
+  int movDir = 0;
+  bool hld = false;
+
+  while (true) {
+    int btn = getButton(true);
+    // case 0: selected = (selected - 1 + count) % count; lift = 0; break;
+    // case 2: selected = (selected + 1) % count; lift = 0; break;
+    if (btn == 3) {while (getButton(true) == 3) delay(10); return 0;}
+    if (btn == 1) {while (getButton(true) == 1) delay(10); return selected + 1;}
+    if (!hld) {
+      if (btn == 0) {
+        hld = true;
+        hldTimer = millis(); 
+        movDir = -1;
+        selected = (selected - 1 + count) % count; lift = 0;
+      }
+      else if (btn == 2) {
+        hld = true;
+        hldTimer = millis(); 
+        movDir = 1;
+        selected = (selected + 1) % count; lift = 0;
+      }
+    }
+    if (btn == -1) {hld = false; movDir = 0;}
+
+    if (hld && millis() - hldTimer > SMTH_FACC) {
+      if (millis() - movTimer > SMTH_WAIT) {
+        if (movDir == -1) {selected = (selected - 1 + count) % count; lift = 0;}
+        else if (movDir == 1) {selected = (selected + 1) % count; lift = 0;}
+        if (millis() - hldTimer < SMTH_FAHH) movTimer = millis();
+      }
+    }
+
+    float targetSelBox = selected * boxH;
+    selBox += (targetSelBox - selBox) * 0.5; 
+
+    float targetWindowPos = windowPos;
+    if (targetSelBox < windowPos) {
+      targetWindowPos = targetSelBox;
+    } else if (targetSelBox + boxH > windowPos + viewH) {
+      targetWindowPos = targetSelBox + boxH - viewH;
+    }
+    if (targetWindowPos < 0) targetWindowPos = 0;
+    if (targetWindowPos > maxWindowPos) targetWindowPos = maxWindowPos;
+
+    windowPos += (targetWindowPos - windowPos) * 0.5;
+    lift += (maxLift - lift) * 0.25;
+
+    u8g2.clearBuffer();
+    for (int i = 0; i < count; i++) {
+      float itemY = titleH + (i * boxH) - windowPos;
+      
+      if (itemY + boxH >= titleH && itemY <= 64) {
+        char buf[32];
+        getItem(list, i, buf, sizeof(buf));
+        if (drawGlyph && i == selected && glyph != nullptr) {
+          u8g2.drawStr(2, itemY + fontH - 1, glyph);
+          u8g2.drawStr(2 + u8g2.getStrWidth(glyph) + 2, itemY + fontH + 1, buf);
+        } else if (i == selected) {
+          u8g2.drawStr(4 + lift, itemY + fontH - 1, buf);
+        } else {
+          u8g2.drawStr(4, itemY + fontH - 1, buf);
+        }
+      }
+    }
+    u8g2.setDrawColor(2); 
+    u8g2.drawRBox(0, titleH + (selBox - windowPos), 128, boxH, 1);
+    u8g2.setDrawColor(0); 
+    u8g2.drawBox(0, 0, 128, titleH - 2);
+    u8g2.setDrawColor(1);
+    if (titleH > 0) {
+      u8g2.setDrawColor(1);
+      u8g2.setFontMode(1);
+      u8g2.drawStr(2, fontH, title);
+      u8g2.drawHLine(0, titleH - 2, 128);
+    }
+    u8g2.sendBuffer();
+  }
+}
+
 void calibMenu() {
   bool running = true;
   bool calib = false;
@@ -92,7 +226,7 @@ void calibMenu() {
   else {b.setPixelColor(0, b.Color(255, 255, 255)); b.show();}
   for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
   while (running) {
-    // updateInput();
+    if (firstTime) updateInput();
     if (calib) {
       calMin[nowCal] = (calMin[nowCal] < rawVal[nowCal]) ? calMin[nowCal] : rawVal[nowCal];
       calMax[nowCal] = (calMax[nowCal] > rawVal[nowCal]) ? calMax[nowCal] : rawVal[nowCal];
@@ -194,6 +328,7 @@ void inputMenu() {
     graphData[i] = 0;
   }
   while (running) {
+    if (firstTime) updateInput();
     u8g2.clearBuffer();
     float maxPress = max(max(hallVal[0], hallVal[1]), hallVal[2]);
     float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
@@ -205,14 +340,15 @@ void inputMenu() {
       inputTypeDigitalEmulation();
         u8g2.drawStr(0, 12, "DigitalEmulation");
         u8g2.drawStr(0, 24, "Acc:");
-        u8g2.drawStr(0, 36, String(actuation).c_str());
+        u8g2.drawStr(0, 36, (hallDisplayAsKT ? String(actuation * keyTravel, 2) + "mm" : String(actuation)).c_str());
         u8g2.drawLine(40, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14);
         break;
       case 1:
         inputTypeHysteresisHandling();
         u8g2.drawStr(0, 12, "Hysteresis");
-        u8g2.drawStr(0, 24, ("U: " + String(upperThreshold)).c_str());
-        u8g2.drawStr(0, 36, ("L: " + String(lowerThreshold)).c_str());
+        u8g2.drawStr(0, 24, ("U: " + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1))).c_str());
+        u8g2.drawStr(0, 36, ("L: " + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1))).c_str());
+        if (hallDisplayAsKT) u8g2.drawStr(0, 48, "mm");
         u8g2.drawLine(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         u8g2.drawLine(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         if (hysteresisChange == 0) {
@@ -224,8 +360,8 @@ void inputMenu() {
       case 2:
         inputTypeDynamicActuation();
         u8g2.drawStr(0, 12, "DynamicAct");
-        u8g2.drawStr(0, 24, ("W: " + String(windowSize)).c_str());
-        u8g2.drawStr(0, 36, ("F: " + String(maxFoot)).c_str());
+        u8g2.drawStr(0, 24, ("W: " + String(windowSize * (hallDisplayAsKT ? keyTravel : 1))).c_str());
+        if (hallDisplayAsKT) u8g2.drawStr(0, 36, "mm");
         u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128  , (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
         u8g2.drawLine(40, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
         break;
@@ -323,27 +459,31 @@ void filtMenu() {
     graphData[i] = 0;
   }
   while (running) {
-    // updateInput();
+    if (firstTime) updateInput();
     float maxHall = max(max(hallVal[0], hallVal[1]), hallVal[2]);
     float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
     int btn = getButton();
     switch (btn) {
-      case 0: filterType = 0; break;
-      case 1: doFilter = !doFilter; break;
-      case 2: filterType = 1; break;
+      case 0: doFilter = !doFilter; break;
+      case 1: filterType = (filterType + 1) % 2; break;
+      case 2: 
+      if (filterType == 0) ovsSamples = (int)valueSet("Samples (OVS)", ovsSamples, true, 2, 256);
+      else emaAlpha = valueSet("Alpha (EMA 1%)", emaAlpha*100, true, 0.01, 100) / 100;
+      emaAlpha = constrain(emaAlpha, 0.00001, 1);
+      break;
       case 3: running = false; break;
       default: break;
     }
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    u8g2.drawStr(0, 12, doFilter ? "Filter" : "Filter [Off]");
+    u8g2.drawStr(0, 12, doFilter ? (filterType == 0 ? "Filter [OVS]" : "Filter [EMA]") : "Filter [Off]");
     u8g2.drawStr(0, 24, ("1 " + String((int)rawVal[0])).c_str());
     u8g2.drawStr(0, 35, ("2 " + String((int)rawVal[1])).c_str());
     u8g2.drawStr(0, 46, ("3 " + String((int)rawVal[2])).c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxHall).c_str());
-    u8g2.drawStr(0, 56, filterType == 0 ? "> F1: OVS" : "F1: OV"); u8g2.drawStr(50, 56, doFilter ? "F2: Disable" : "F2: Enable");
-    u8g2.drawStr(0, 64, filterType == 1 ? "> F3: EMA" : "F3: AV"); u8g2.drawStr(50, 64, "F4: Exit");
+    u8g2.drawStr(0, 56, doFilter ? "F1: Disable" : "F1: Enable"); u8g2.drawStr(58, 56, filterType == 0 ? "F2: use EMA" : "F2: use OVS");
+    u8g2.drawStr(0, 64, "F3: Change"); u8g2.drawStr(58, 64, "F4: Exit");
     pushGraphValue(maxHall);
     drawGraph(40, 14);
       switch (inputHandler) {
@@ -360,15 +500,6 @@ void filtMenu() {
       }
     u8g2.sendBuffer();
   }
-  if (doFilter) {
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    int curious = u8g2.userInterfaceMessage(
-      "ADC may change",
-      "slower while display",
-      "is working",
-      " Ok \n More "
-    ); // for later info
-  }
 }
 
 void effectMenu() {
@@ -378,7 +509,7 @@ void effectMenu() {
     String menu_items =
       "Under Glow " + String(underGlow ? "[On]" : "[Off]") + "\n"
       + "RGB Led " + String(rgb ? "[On]" : "[Off]");
-    sel = u8g2.userInterfaceSelectionList("Effects", sel, menu_items.c_str());
+    sel = noidMenu("Effects", sel, menu_items.c_str());
     if (sel == 1) {
       int subSel = 1;
       String effectsList[] = {
@@ -397,7 +528,7 @@ void effectMenu() {
           tmp += (glowType == i ? "> " : "") + effectsList[i] + (glowType == i ? " <" : "");
           if (i < 5) tmp += "\n";
         }
-        subSel = u8g2.userInterfaceSelectionList("Under Glow", subSel, tmp.c_str());
+        subSel = noidMenu("Under Glow", subSel, tmp.c_str());
         if (subSel == 1) underGlow = !underGlow;
         else if (subSel >= 3 && subSel <= 8) glowType = subSel - 3;
       }
@@ -414,7 +545,7 @@ void effectMenu() {
         } else {
           menuElements += "Color (" + String(color[0]) + ", " + String(color[1]) + ", " + String(color[2]) + ")";
         }
-        subSel = u8g2.userInterfaceSelectionList("RGB Led", subSel, menuElements.c_str());
+        subSel = noidMenu("RGB Led", subSel, menuElements.c_str());
         if (subSel == 1) rgb = !rgb;
         if (subSel == 2) rgbBri = (uint8_t)valueSet("Brightness", rgbBri, true, 0, 255);
         // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &rgbBri, 0, 255, 3, " ");
@@ -430,7 +561,7 @@ void effectMenu() {
                 + "R: " + String(color[0]) + "\n"
                 + "G: " + String(color[1]) + "\n"
                 + "B: " + String(color[2]);
-              sub2Sel = u8g2.userInterfaceSelectionList("Color\n", sub2Sel, colorElements.c_str());
+              sub2Sel = noidMenu("Color\n", sub2Sel, colorElements.c_str());
               if (sub2Sel == 1) color[0] = (uint8_t)valueSet("Red", color[0], true, 0, 255);
               else if (sub2Sel == 2) color[1] = (uint8_t)valueSet("Blue", color[1], true, 0, 255);
               else if (sub2Sel == 3) color[2] = (uint8_t)valueSet("Green", color[2], true, 0, 255);
@@ -444,6 +575,8 @@ void effectMenu() {
 }
 
 void displaySetting() {
+  bool hdak = hallDisplayAsKT;
+  float kt = keyTravel;
   int subSel = 1;
   const char lazyAss[] =
     "1s\n"
@@ -478,10 +611,12 @@ void displaySetting() {
       menuItem += "Icon: \"" + screenLogo + "\"";
     else
       menuItem += "Icon: \"" + String(kaoOrSomethingIdk[logoType - 1]) + "\"";
-    subSel = u8g2.userInterfaceSelectionList("Display", subSel, menuItem.c_str());
+    menuItem += "\nHall Value: " + (String)(hdak ? "mm" : "Normalized");
+    menuItem += "\nHall key travel: " + String(kt, 2);
+    subSel = noidMenu("Display", subSel, menuItem.c_str());
     if (subSel == 1) {screenBri = (uint8_t)valueSet("Brightness", screenBri, true, 0, 255); u8g2.setContrast(screenBri);}
     if (subSel == 2) {
-      switch (u8g2.userInterfaceSelectionList("Screen on", 1, lazyAss)) {
+      switch (noidMenu("Screen on", 1, lazyAss)) {
         case 1: screenSaveDuration = 1000; screenOffDuration += 1000; break;
         case 2: screenSaveDuration = 5000; break;
         case 3: screenSaveDuration = 10000; break;
@@ -494,7 +629,7 @@ void displaySetting() {
       }
     }
     if (subSel == 3) {
-      switch (u8g2.userInterfaceSelectionList("Screen on", 1, lazyAss)) {
+      switch (noidMenu("Screen on", 1, lazyAss)) {
         case 1: screenOffDuration = 1000; break;
         case 2: screenOffDuration = 5000; break;
         case 3: screenOffDuration = 10000; break;
@@ -512,7 +647,7 @@ void displaySetting() {
         tmp += kaoOrSomethingIdk[i];
         if (i < 11) tmp += "\n";
       }
-      int logSel = u8g2.userInterfaceSelectionList("Display Icon", 1, tmp.c_str());
+      int logSel = noidMenu("Display Icon", 1, tmp.c_str());
       if (logSel == 1) {
         screenLogo = "Mufuki";
         logoType = 0;
@@ -522,7 +657,13 @@ void displaySetting() {
         logoType = 12;
       }
     }
+    if (subSel == 5) hdak = !hdak;
+    if (subSel == 6) {
+      kt = valueSet("Key Travel (mm):", kt, true, 0.1, 1000);
+      if (keyTravel > 100)  u8g2.userInterfaceMessage("Damn", "da loooong way", "", " ok ");
+    }
   }
+  if (hdak != hallDisplayAsKT || kt != keyTravel) sysSave();
 }
 
 void mpuMenu() {
@@ -533,7 +674,7 @@ void mpuMenu() {
   ;
   int sel = 1;
   while (sel != 0) {
-    sel = u8g2.userInterfaceSelectionList("MPU", sel, useless);
+    sel = noidMenu("MPU", sel, useless);
     if (sel == 1) {
       u8g2.clearBuffer();
       u8g2.drawStr(64 - u8g2.getStrWidth("Calibrating") / 2, 32, "Calibrating...");
@@ -699,7 +840,7 @@ void showDebug() {
         u8g2.drawStr(0, 30, tmp.c_str());
         tmp = "mac:" + String(WiFi.macAddress());
         u8g2.drawStr(0, 40, tmp.c_str());
-        tmp = "adcDeadZone:" + String(deadZone);
+        tmp = "adcDeadZone: [" + String(deadZone[0]) + ", " + String(deadZone[1]) + ", " + String(deadZone[2]) + "]";
         u8g2.drawStr(0, 50, tmp.c_str());
         break;
       }
@@ -738,7 +879,7 @@ void deadCalib() {
   ;
   int option = 1;
   while (option != 0) {
-    option = u8g2.userInterfaceSelectionList("DeadZone Calibrate", option, menuItems);
+    option = noidMenu("DeadZone Calibrate", option, menuItems);
     if (option == 1) {
       for (int i = 0; i < 5; i++){
         u8g2.clearBuffer();
@@ -759,6 +900,8 @@ void deadCalib() {
       int aMin = 4095;
       delay(1000);
       for (int sw = 0; sw < 3; sw++) {
+        aMax = 0;
+        aMin = 4095;
         u8g2.clearBuffer();
         u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
         u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
@@ -778,11 +921,12 @@ void deadCalib() {
           if (adcVal < aMin) aMin = adcVal;
           delay(1);
         }
+        deadZone[sw] = aMax - aMin;
       }
-      deadZone = aMax - aMin;
       int avrgMin = (calMin[0] + calMin[1] + calMin[2]) / 3;
       int avrgMax = (calMax[0] + calMax[1] + calMax[2]) / 3;
-      if (avrgMax - avrgMin - deadZone * 2 < 100) {
+      int avrgDZ = (deadZone[0] + deadZone[1] + deadZone[2]) / 3;
+      if (avrgMax - avrgMin - avrgDZ * 2 < 100) {
         int opt = u8g2.userInterfaceMessage(
           "Calibration failed!",
           "Dead zone too big",
@@ -798,21 +942,29 @@ void deadCalib() {
           );
           u8g2.userInterfaceMessage(
             "[2/2] More Info",
-            ("DeadZone: " + String(deadZone)).c_str(),
-            ("Dynamic Range: " + String(avrgMax - avrgMin - deadZone * 2)).c_str(),
+            ("DeadZone: " + String(avrgDZ)).c_str(),
+            ("Dynamic Range: " + String(avrgMax - avrgMin - avrgDZ * 2)).c_str(),
             " Next>> "
           );
         }
       }
       u8g2.userInterfaceMessage(
         "Calibration done!",
-        ("Dead Zone: " + String(deadZone)).c_str(),
+        ("Dead Zone: " + String(avrgDZ)).c_str(),
         "",
         " Ok "
       );
     }
     else if (option == 2) {
-      deadZone = (int)valueSet("Dead Zone", deadZone, true, 0, 4095);
+      int dSel = 1;
+      while (dSel > 0) {
+        String dList = 
+        "Hall 1: " + String(deadZone[0])+
+        "\nHall 2: " + String(deadZone[1])+
+        "\nHall 3: " + String(deadZone[2]);
+        dSel = noidMenu("Manual Set", dSel, dList.c_str());
+        if (dSel > 0) deadZone[dSel - 1] = (int)valueSet(("Dead Zone" + String(dSel)).c_str(), deadZone[dSel - 1], true, 0, 4095);
+      }
     }
   }
   u8g2.userInterfaceMessage(
@@ -866,9 +1018,6 @@ void firstTimeSetup() {
   u8g2.sendBuffer();
   delay(1000);
   splScreen("Wellcome!", "Mufuki Setup", (ver + " - NoID").c_str(),  " Start>> ");
-  splScreen("Buttons", "Side buttons", "F1 to F4 ---->", " Next ");
-  splScreen("Buttons", "F1: Up     F2: OK", "F3: Down  F4:Back", " Next ");
-  splScreen("Switches", "SW1 to SW3", "with hall sensors", " Next ");
   splScreen("Switches", "Calibrate?", "", "", false, false);
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 56, "F1: OK");
@@ -953,7 +1102,6 @@ void firstTimeSetup() {
   saveProfile(configPath.c_str(), prf);
   sysSave();
   splScreen("Setup Complete!", "Your device are", "ready to use", " Next ");
-  splScreen("Setup Complete!", "Web app also", "available in menu", " Next ");
   splScreen("Setup Done!", "You can hold F4", "to enter menu");
 }
 
@@ -990,26 +1138,111 @@ void fomartFS() {
   forceReset();
 }
 
+void otaUpdate() {
+  if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {;
+    while (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {
+      int c = u8g2.userInterfaceMessage(
+      "No Connection",
+      "Please connect",
+      "to WiFi first",
+      " WiFi \n Back "
+      );
+      if (c == 1) wifiMenu();
+      else break;
+    }
+    if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) return;
+  }
+  static uint8_t spinnerIndex = 0;
+  static bool doingOTA = true;
+  const char spinnerFrames[4] = {'|', '/', '-', '\\'};
+  unsigned long displayTime = millis();
+  l.setBrightness(128);
+
+  ArduinoOTA
+    .onProgress([&](unsigned int progress, unsigned int total) {
+      int percent = (progress * 100) / total;
+
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+
+      if (percent == 0) {
+        char frame[2] = {spinnerFrames[spinnerIndex], '\0'};
+        spinnerIndex = (spinnerIndex + 1) % 4;
+
+        u8g2.drawStr((128 - u8g2.getStrWidth("Waiting..."))/2, 20, "Waiting...");
+        u8g2.drawStr((128 - u8g2.getStrWidth(frame))/2, 48, frame);
+      } else {
+        u8g2.drawStr((128 - u8g2.getStrWidth("Updating..."))/2, 14, "Updating...");
+        u8g2.drawFrame(10, 28, 108, 12);
+        int barWidth = (108 * percent) / 100;
+        u8g2.drawBox(10, 28, barWidth, 12);
+
+        String percentStr = String(percent) + "%";
+        u8g2.drawStr((128 - u8g2.getStrWidth(percentStr.c_str()))/2, 54, percentStr.c_str());
+      }
+      if (millis() - displayTime > 1000) {
+        l.fill(l.Color(255, 170, 0));
+        l.show();
+        u8g2.sendBuffer();
+        displayTime = millis();
+      }
+    })
+    .onEnd([]() {
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_spleen16x32_mr);
+      u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
+      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+      u8g2.drawStr((128 - u8g2.getStrWidth("Restarting..."))/2, 54, "Restarting...");
+      u8g2.sendBuffer();
+      l.fill(l.Color(255, 255, 255));
+      l.show();
+      forceReset();
+      doingOTA = false;
+    });
+
+  ArduinoOTA.begin();
+
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  u8g2.drawStr((128 - u8g2.getStrWidth("OTA Update"))/2, 20, "OTA Update");
+  IPAddress ip = WiFi.localIP();
+  String ipStr = ip.toString();
+
+  ipStr = "IP: " + ipStr;
+  u8g2.drawStr((128 - u8g2.getStrWidth(ipStr.c_str()))/2, 63, ipStr.c_str());
+  u8g2.drawStr((128 - u8g2.getStrWidth("Waiting..."))/2, 36, "Waiting...");
+  u8g2.sendBuffer();
+
+  l.fill(l.Color(0, 255, 0));
+  l.show();
+
+  while (doingOTA) {
+    ArduinoOTA.handle();
+    int btn = getButton();
+    if (btn == 3) {doingOTA = false; break;}
+    delay(100);
+  }
+  forceReset();
+}
+
 void systemMenu() {
   int sel = 1;
   const char menuItems[] =
     "Display\n"
-    "Deadzone Calibrate\n"
-    "Profiles\n"
     "MPU\n"
     "Reset\n"
-    "Debug"
+    "Debug\n"
+    "OTA Update"
   ;
   while (sel != 0) {
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    sel = u8g2.userInterfaceSelectionList("System", sel, menuItems);
+    sel = noidMenu("System", sel, menuItems);
     switch (sel) {
       case 1: displaySetting(); break;
-      case 2: deadCalib(); break;
-      case 3: profileMenu(); break;
-      case 4: mpuMenu(); break;
-      case 5: fomartFS(); break;
-      case 6: showDebug(); break;
+      case 2: mpuMenu(); break;
+      case 3: fomartFS(); break;
+      case 4: showDebug(); break;
+      case 5: otaUpdate(); break;
       default: break;
     }
   }
@@ -1129,7 +1362,7 @@ void wifiMenu() {
       wItems += "Scan for networks\n";
       wItems += "Manual Connect";
     }
-    subSel = u8g2.userInterfaceSelectionList("WiFi Settings", subSel, wItems.c_str());
+    subSel = noidMenu("WiFi Settings", subSel, wItems.c_str());
     if (subSel == 1) {
       if (wDisable) {WiFi.mode(WIFI_STA); WiFi.begin();}
       else WiFi.mode(WIFI_OFF);
@@ -1173,7 +1406,7 @@ void wifiMenu() {
             for (int i = 0; i < wifiCount; i++) {
               Wlist += String(i + 1) + ". " + WiFi.SSID(i) + " (" + String(map(constrain(WiFi.RSSI(i), -100, -10), -100, -10, 0, 100)) + "%)" + (i < wifiCount - 1 ? "\n" : "");
             }
-            wsSel = u8g2.userInterfaceSelectionList("Select Network", wsSel, Wlist.c_str());
+            wsSel = noidMenu("Select Network", wsSel, Wlist.c_str());
             if (wsSel == 1) {
               u8g2.clearBuffer();
               u8g2.setFont(u8g2_font_fub20_tf);
@@ -1206,7 +1439,7 @@ void wifiMenu() {
           "SSID: " + (wifiSSID == "" ? "<Required!>" : wifiSSID) + "\n"
         + "Pass: " + (wifiPass == "" ? "<None>" : wifiPass) + "\n"
         + (wifiSSID == "" ? "[type SSID!]" : "Connect!");
-          wsSel = u8g2.userInterfaceSelectionList("Manual connect", wsSel, wConItems.c_str());
+          wsSel = noidMenu("Manual connect", wsSel, wConItems.c_str());
           if (wsSel == 1) wifiSSID = keyboard(wifiSSID);
           if (wsSel == 2) wifiPass = keyboard(wifiPass);
           if (wsSel == 3 && wifiSSID != "") {
@@ -1227,16 +1460,60 @@ void wifiMenu() {
   }
 }
 
+void layoutChangeMenu() {
+  int layChange = 1;
+  while (layChange != 0) {
+    String layoutName[] = {
+      "Standart",
+      "WASD",
+      "Arrows",
+      "Shortcuts",
+      "For BLE Key",
+      "Custom"
+    };
+    String tmpName = "";
+    for (int i = 0; i < 6; i++) {
+      tmpName += (i == layoutType ? "> " : "") + layoutName[i] + (i == layoutType ? " <" : "");
+      if (i < 5) tmpName += "\n";
+    }
+    layChange = noidMenu("Layout", layoutType + 1, tmpName.c_str());
+    if (layChange == 0) continue;
+    layoutType = layChange != 0 ? layChange - 1 : layoutType;
+    if (layoutType == 5) {
+      int layoutSel = 1;
+      while (layoutSel != 0) {
+        String nowLayout = "";
+        for (int i = 0; i < 6; i++) {
+          if (i < 3) nowLayout += "Sw" + String(i + 1) + ": ";
+          else nowLayout += "F" + String(i - 2) + ": ";
+          nowLayout += codeToName(layout[i]);
+          if (i < 5) nowLayout += "\n";
+        }
+        layoutSel = noidMenu("Custom Layout", layoutSel, nowLayout.c_str());
+        if (layoutSel > 0) {
+          int ckeycode = noidMenu("Change Key", codeToIndex(layout[layoutSel - 1]), buttonName);
+          if (ckeycode > 0) layout[layoutSel - 1] = buttonCode[ckeycode - 1];
+        }
+      }
+    } else {
+      layChange = 0;
+      for (int i = 0; i < 6; i++) {
+        layout[i] = preLayout[layoutType][i];
+      }
+    }
+  }
+}
+
 void connectMenu() {
   const char items[] =
     "USB HID\n"
     "Bluetooth\n"
-    "WiFi Settings\n"
-    "Keyboard Layout";
+    "WiFi Settings";
+    // "Keyboard Layout";
   int sel = 1;
   int vpidChange = vpidSet;
   while (sel != 0) {
-    sel = u8g2.userInterfaceSelectionList("Connection", sel, items);
+    sel = noidMenu("Connection", sel, items);
     if (sel == 1) {
       int subSel = 1;
       while (subSel != 0) {
@@ -1261,7 +1538,7 @@ void connectMenu() {
             default: break;
           }
         }
-        subSel = u8g2.userInterfaceSelectionList("USB HID", subSel, usbItems.c_str());
+        subSel = noidMenu("USB HID", subSel, usbItems.c_str());
         if (subSel == 1) {
           u8g2.clearBuffer();
           u8g2.drawStr(64 - u8g2.getStrWidth("Refreshing...") / 2, 32, "Refreshing...");
@@ -1278,7 +1555,7 @@ void connectMenu() {
             "2000 Hz\n"
             "4000 Hz [!]\n"
             "8000 Hz [!]";
-          int pollSel = u8g2.userInterfaceSelectionList("Polling Rate", 1, pollingList);
+          int pollSel = noidMenu("Polling Rate", 1, pollingList);
           switch (pollSel) {
             case 1: LOOP_INTERVAL_US = 8000; break;
             case 2: LOOP_INTERVAL_US = 4000; break;
@@ -1314,7 +1591,7 @@ void connectMenu() {
           "Keyboard\n"
           "Gamepad\n"
           "Mouse";
-          cMode = u8g2.userInterfaceSelectionList("USB Mode", cMode + 1, mMenu) - 1;
+          cMode = noidMenu("USB Mode", cMode + 1, mMenu) - 1;
           if (cMode != usbMode) {
             int wopt = u8g2.userInterfaceMessage("Noicte", "USB Mode apply", "after restart", " Cancel \n Ok \n Restart");
             switch (wopt) {
@@ -1352,7 +1629,7 @@ void connectMenu() {
           + "Keyboard\n"
           + "Air Mouse\n"
           + "Gamepad";
-        subSel = u8g2.userInterfaceSelectionList("Bluetooth", subSel, bleItems.c_str());
+        subSel = noidMenu("Bluetooth", subSel, bleItems.c_str());
         if (subSel == 1) {
           btName = keyboard(btName);
         } else {
@@ -1368,49 +1645,9 @@ void connectMenu() {
     if (sel == 3) {
       wifiMenu();
     }
-    else if (sel == 4) {
-      int layChange = 1;
-      while (layChange != 0) {
-        String layoutName[] = {
-          "Standart",
-          "WASD",
-          "Arrows",
-          "Shortcuts",
-          "For BLE Key",
-          "Custom"
-        };
-        String tmpName = "";
-        for (int i = 0; i < 6; i++) {
-          tmpName += (i == layoutType ? "> " : "") + layoutName[i] + (i == layoutType ? " <" : "");
-          if (i < 5) tmpName += "\n";
-        }
-        layChange = u8g2.userInterfaceSelectionList("Layout", layoutType + 1, tmpName.c_str());
-        if (layChange == 0) continue;
-        layoutType = layChange != 0 ? layChange - 1 : layoutType;
-        if (layoutType == 5) {
-          int layoutSel = 1;
-          while (layoutSel != 0) {
-            String nowLayout = "";
-            for (int i = 0; i < 6; i++) {
-              if (i < 3) nowLayout += "Sw" + String(i + 1) + ": ";
-              else nowLayout += "F" + String(i - 2) + ": ";
-              nowLayout += codeToName(layout[i]);
-              if (i < 5) nowLayout += "\n";
-            }
-            layoutSel = u8g2.userInterfaceSelectionList("Custom Layout", layoutSel, nowLayout.c_str());
-            if (layoutSel > 0) {
-              int ckeycode = u8g2.userInterfaceSelectionList("Change Key", 1, buttonName);
-              layout[layoutSel - 1] = buttonCode[ckeycode - 1];
-            }
-          }
-        } else {
-          layChange = 0;
-          for (int i = 0; i < 6; i++) {
-            layout[i] = preLayout[layoutType][i];
-          }
-        }
-      }
-    }
+    // else if (sel == 4) {
+    //   layoutChangeMenu();
+    // }
   }
   if (vpidChange != vpidSet) {
     int wopt = u8g2.userInterfaceMessage("Noicte", "VID PID apply", "after restart", " Cancel \n Ok \n Restart");

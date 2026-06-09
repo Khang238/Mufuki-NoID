@@ -80,8 +80,10 @@ struct Profile {
   float   lowerThreshold = 0.4;
   float   calMax[3] = {2200, 2200, 2200};
   float   calMin[3] = {2000, 2000, 2000};
-  int     deadZone = 8;
+  int     deadZone[3] = {16, 16, 16};
   bool    doFilter = false;
+  int     ovsSamples = 16;
+  float   emaAlpha = 0.05;
   uint8_t filterType = 0;
   uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
 

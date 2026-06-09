@@ -15,92 +15,21 @@ int max(int a, int b) {
   return (a > b) ? a : b;
 }
 
-void otaUpdate() {
-  static uint8_t spinnerIndex = 0;
-  static bool doingOTA = true;
-  const char spinnerFrames[4] = {'|', '/', '-', '\\'};
-  unsigned long displayTime = millis();
-  l.setBrightness(128);
-
-  ArduinoOTA
-    .onProgress([&](unsigned int progress, unsigned int total) {
-      int percent = (progress * 100) / total;
-
-      u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_gulim11_t_korean1);
-
-      if (percent == 0) {
-        char frame[2] = {spinnerFrames[spinnerIndex], '\0'};
-        spinnerIndex = (spinnerIndex + 1) % 4;
-
-        u8g2.drawStr((128 - u8g2.getStrWidth("Waiting..."))/2, 20, "Waiting...");
-        u8g2.drawStr((128 - u8g2.getStrWidth(frame))/2, 48, frame);
-      } else {
-        u8g2.drawStr((128 - u8g2.getStrWidth("Updating..."))/2, 14, "Updating...");
-        u8g2.drawFrame(10, 28, 108, 12);
-        int barWidth = (108 * percent) / 100;
-        u8g2.drawBox(10, 28, barWidth, 12);
-
-        String percentStr = String(percent) + "%";
-        u8g2.drawStr((128 - u8g2.getStrWidth(percentStr.c_str()))/2, 54, percentStr.c_str());
-      }
-      if (millis() - displayTime > 1000) {
-        l.fill(l.Color(255, 170, 0));
-        l.show();
-        u8g2.sendBuffer();
-        displayTime = millis();
-      }
-    })
-    .onEnd([]() {
-      u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_spleen16x32_mr);
-      u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-      u8g2.setFont(u8g2_font_gulim11_t_korean1);
-      u8g2.drawStr((128 - u8g2.getStrWidth("Restarting..."))/2, 54, "Restarting...");
-      u8g2.sendBuffer();
-      l.fill(l.Color(255, 255, 255));
-      l.show();
-      forceReset();
-      doingOTA = false;
-    });
-
-  ArduinoOTA.begin();
-
-  u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
-  u8g2.drawStr((128 - u8g2.getStrWidth("OTA Update"))/2, 20, "OTA Update");
-  IPAddress ip = WiFi.localIP();
-  String ipStr = ip.toString();
-
-  ipStr = "IP: " + ipStr;
-  u8g2.drawStr((128 - u8g2.getStrWidth(ipStr.c_str()))/2, 63, ipStr.c_str());
-  u8g2.drawStr((128 - u8g2.getStrWidth("Waiting..."))/2, 36, "Waiting...");
-  u8g2.sendBuffer();
-
-  l.fill(l.Color(0, 255, 0));
-  l.show();
-
-  while (doingOTA) {
-    ArduinoOTA.handle();
-    int btn = getButton();
-    if (btn == 3) {doingOTA = false; break;}
-    delay(100);
-  }
-  forceReset();
-} 
-
 void mainMenu() {
-  const char menu_items[] =
-    "Calibration\n"
-    "Input handling\n"
-    "Filter\n"
-    "Mapping\n"
-    "Connection\n"
+  const char kmenu_items[] =
+    "Hall Settings\n"
+    "Layout\n"
     "Effects\n"
-    "System\n"
-    "OTA Update\n"
-    "About";
-
+    "Connection\n"
+    "Profile\n"
+    "System";
+  const char gmenu_items[] =
+    "Hall Settings\n"
+    "Mapping\n"
+    "Effects\n"
+    "Connection\n"
+    "Profile\n"
+    "System";
   if (analogLed) {
     for (int i = 0; i < 3; i++) ledcWrite(i, 0);
   } else {
@@ -120,40 +49,37 @@ void mainMenu() {
   int sel = 1;
   while (sel > 0) {
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    sel = u8g2.userInterfaceSelectionList("Main Menu", sel, menu_items);
+    sel = noidMenu("Main Menu", sel, usbMode == 0 ? kmenu_items : gmenu_items);
     switch (sel) {
-      case 1: calibMenu(); break;
-      case 2: inputMenu(); break;
-      case 3: filtMenu(); break;
-      case 4: editMapping(prf); break;
-      case 5: connectMenu(); break;
-      case 6: effectMenu(); break;
-      case 7: systemMenu(); break;
-      case 8:
-        if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {;
-          while (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) {
-            int c = u8g2.userInterfaceMessage(
-            "No Connection",
-            "Please connect",
-            "to WiFi first",
-            " WiFi \n Back "
-            );
-            if (c == 1) wifiMenu();
-            else break;
+      case 1: {
+        int hSel = 1;
+        const char hallSItem[] =
+        "Calibrate\n"
+        "Filter\n"
+        "Input Handling\n"
+        "Dead Zone";
+        while (hSel > 0) {
+          switch (hSel) {
+            case 0: calibMenu(); break;
+            case 1: filtMenu(); break;
+            case 2: inputMenu(); break;
+            case 3: deadCalib(); break;
+            default: break;
           }
-          if (WiFi.getMode() == WIFI_OFF || WiFi.status() != WL_CONNECTED) break;
         }
-        otaUpdate();
-        break;
-      case 9: about(); break;
-      default:
-        break;
+      } break;
+      case 2: if (usbMode == 0) layoutChangeMenu(); else editMapping(prf); break;
+      case 3: effectMenu();
+      case 4: connectMenu();
+      case 5: profileMenu();
+      case 6: systemMenu();
+      default: break;
     }
   }
-  for (int i = 0; i < 3; i++) {
-    ledcWrite(i, 0);
-    applyEffect[i] = 0;
-  }
+  // for (int i = 0; i < 3; i++) {
+  //   ledcWrite(i, 0);
+  //   applyEffect[i] = 0;
+  // }
   if (rgb) {
     l.setBrightness(rgbBri);
     l.fill(l.Color(color[0], color[1], color[2]));
@@ -166,7 +92,7 @@ void mainMenu() {
 
 class CSCDCCallbacks : public CDCCallbacks {
   bool onConnect(bool dtr, bool rts) {
-    return false;  // không cho phép reset
+    return false;
   }
   void onData() {}
 };
@@ -205,9 +131,6 @@ void hidTask(void* param) {
   const TickType_t loopPeriod = pdMS_TO_TICKS(1);  // ~1000Hz
 
   while (true) {
-    updateInput();
-    if (usbMode != 0) mpu.update();
-
     if (tud_ready() && !menuOpen) {
       switch (usbMode) {
         case 0: handleKeypad(); break;
@@ -215,15 +138,7 @@ void hidTask(void* param) {
         case 2: handleMouse(); break;
       }
     }
-    rate++;
-    if (millis() - lastRateCheckUpdate > 1000) {
-      lastRateCheckUpdate = millis();
-      lastRate = rate;
-      rate = 0;
-    }
-    // Yield + feed watchdog tốt
-    vTaskDelayUntil(&lastWakeTime, loopPeriod);
-    // hoặc: taskYIELD();
+    vTaskDelay(1);
   }
 }
 
@@ -359,7 +274,6 @@ void setup() {
   // Wireless
   BLEDevice::deinit(true);
   WiFi.mode(WIFI_OFF);
-  // WiFi.begin("Vi MUNG"); // if this fail i might fucked up
 
   // Hardware setup
   l.begin();
@@ -377,9 +291,9 @@ void setup() {
   const char *NoID = "NoID";
   u8g2.drawStr((128 - u8g2.getStrWidth(NoID))/2, 56, NoID);
   u8g2.sendBuffer();
-  u8g2.setFont(u8g2_font_5x8_mf);
-  u8g2.drawStr(0, 8, String(esp_reset_reason()).c_str());
-  u8g2.sendBuffer();
+  // u8g2.setFont(u8g2_font_5x8_mf);
+  // u8g2.drawStr(0, 8, String(esp_reset_reason()).c_str());
+  // u8g2.sendBuffer();
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
   l.fill(l.Color(255, 255, 0));
   l.show();
@@ -414,7 +328,9 @@ void setup() {
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
   }
   if (!sysLoad()) {
+    firstTime = true;
     firstTimeSetup(); // definitely first time
+    firstTime = false;
   }
   if (!loadProfile(configPath.c_str(), prf)) {
     saveProfile(configPath.c_str(), prf); // fallback to default
@@ -442,7 +358,7 @@ void setup() {
   }
   mpu.calcOffsets();
   u8g2.setContrast(screenBri);
-  // xTaskCreatePinnedToCore(hidTask,     "HID",     4096, NULL, 1, NULL, 0);
+  xTaskCreatePinnedToCore(hidTask,     "HID",     4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(displayTask, "Display", 8192, NULL, 2, NULL, 1);
   // vTaskDelete(NULL);
 }
@@ -451,15 +367,6 @@ void loop() {
   if (micros() - lastLoopTime <= LOOP_INTERVAL_US) return;
   lastLoopTime = micros();
   updateInput();
-  if (usbMode != 0) mpu.update();
-
-  if (tud_ready() && !menuOpen) {
-    switch (usbMode) {
-      case 0: handleKeypad(); break;
-      case 1: handleGamepad(); break;
-      case 2: handleMouse(); break;
-    }
-  }
   rate++;
   if (millis() - lastRateCheckUpdate > 5000) {
     lastRateCheckUpdate = millis();

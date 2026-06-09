@@ -17,8 +17,10 @@ void unpackProfile(Profile& p) {
   lowerThreshold = p.lowerThreshold;
   for (int i = 0; i < 3; i++) calMax[i] = p.calMax[i];
   for (int i = 0; i < 3; i++) calMin[i] = p.calMin[i];
-  deadZone = p.deadZone;
+  for (int i = 0; i < 3; i++) deadZone[i] = p.deadZone[i];
   doFilter = p.doFilter;
+  emaAlpha = p.emaAlpha;
+  ovsSamples = p.ovsSamples;
   filterType = p.filterType;
   for (int i = 0; i < 6; i++) layout[i] = p.layout[i];
 
@@ -53,9 +55,11 @@ void packProfile(Profile& p) {
   p.lowerThreshold = lowerThreshold;
   for (int i = 0; i < 3; i++) p.calMax[i] = calMax[i];
   for (int i = 0; i < 3; i++) p.calMin[i] = calMin[i];
-  p.deadZone = deadZone;
+  for (int i = 0; i < 3; i++) p.deadZone[i] = deadZone[i];
   p.doFilter = doFilter;
   p.filterType = filterType;
+  p.emaAlpha = emaAlpha;
+  p.ovsSamples = ovsSamples;
   for (int i = 0; i < 6; i++) p.layout[i] = layout[i];
 
   // Display
@@ -98,9 +102,11 @@ bool saveProfile(const char* path, Profile& p) {
   doc["ws"] = p.windowSize;
   doc["ut"] = p.upperThreshold;
   doc["lt"] = p.lowerThreshold;
-  doc["dz"] = p.deadZone;
   doc["df"] = p.doFilter;
   doc["ft"] = p.filterType;
+  doc["ea"] = p.emaAlpha;
+  doc["os"] = p.ovsSamples;
+  for (int i = 0; i < 3; i++) doc["dz"][i] = p.deadZone[i];
   for (int i = 0; i < 3; i++) doc["cx"][i] = p.calMax[i];
   for (int i = 0; i < 3; i++) doc["cm"][i] = p.calMin[i];
   for (int i = 0; i < 6; i++) doc["lo"][i] = p.layout[i];
@@ -166,9 +172,12 @@ bool loadProfile(const char* path, Profile& p) {
   p.windowSize     = doc["ws"] | p.windowSize;
   p.upperThreshold = doc["ut"] | p.upperThreshold;
   p.lowerThreshold = doc["lt"] | p.lowerThreshold;
-  p.deadZone       = doc["dz"] | p.deadZone;
   p.doFilter       = doc["df"] | p.doFilter;
   p.filterType     = doc["ft"] | p.filterType;
+  p.emaAlpha       = doc["ea"] | p.emaAlpha;
+  p.ovsSamples     = doc["os"] | p.ovsSamples;
+  if (doc["dz"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) p.deadZone[i] = doc["dz"] | p.deadZone[i];
   if (doc["cx"].is<JsonArray>())
     for (int i = 0; i < 3; i++) p.calMax[i] = doc["cx"][i] | p.calMax[i];
   if (doc["cm"].is<JsonArray>())
@@ -234,6 +243,8 @@ bool sysSave() {
   doc["bt"] = withBLE;
   doc["pv"] = profileVersion;
   doc["vpid"] = vpidSet;
+  doc["hak"] = hallDisplayAsKT;
+  doc["kt"] = keyTravel;
   if (serializeJsonPretty(doc, file) == 0) {
     file.close();
     return false;
@@ -263,6 +274,8 @@ bool sysLoad() {
   withBLE = doc["bt"] | withBLE;
   profileVersion = doc["pv"] | profileVersion;
   vpidSet = doc["vpid"] | vpidSet;
+  hallDisplayAsKT = doc["hak"] | hallDisplayAsKT;
+  keyTravel = doc["kt"] | keyTravel;
   if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }
@@ -296,12 +309,11 @@ void profileMenu() {
     "Default Profile\n"
     "Load Profile\n"
     "Save Profile\n"
-    "Delete Profile\n"
-    "Profile Version"
+    "Delete Profile"
   ;
   int sel = 1;
   while (sel != 0) {
-    sel = u8g2.userInterfaceSelectionList("Profiles", sel, menuItems);
+    sel = noidMenu("Profiles", sel, menuItems);
     
     if (sel == 1) {
       std::vector<String> profiles = listProfiles();
@@ -312,7 +324,7 @@ void profileMenu() {
           subSel += profiles[i];
           if (i < profilesCount - 1) subSel += "\n";
         }
-        int choose = u8g2.userInterfaceSelectionList("Set Default", 0, subSel.c_str());
+        int choose = noidMenu("Set Default", 0, subSel.c_str());
         if (choose != 0) {
           String prfName = "/" + profiles[choose - 1];
           configPath = prfName;
@@ -336,7 +348,7 @@ void profileMenu() {
           subSel += profiles[i];
           if (i < profilesCount - 1) subSel += "\n";
         }
-        int choose = u8g2.userInterfaceSelectionList("Load Profile", 0, subSel.c_str());
+        int choose = noidMenu("Load Profile", 0, subSel.c_str());
         if (choose != 0) {
           String prfName = "/" + profiles[choose - 1];
           if (loadProfile(prfName.c_str(), prf)) {
@@ -358,7 +370,7 @@ void profileMenu() {
           "New File\n"
           "Replace File"
         ;
-        int act = u8g2.userInterfaceSelectionList("Save Profile", 0, actions);
+        int act = noidMenu("Save Profile", 1, actions);
         if (act == 0) break;
         if (act == 1) {
           int opt = -1;
@@ -411,7 +423,7 @@ void profileMenu() {
               subSel += profiles[i];
               if (i < profilesCount - 1) subSel += "\n";
             }
-            int choose = u8g2.userInterfaceSelectionList("Replace Profile", 0, subSel.c_str());
+            int choose = noidMenu("Replace Profile", 1, subSel.c_str());
             if (choose != 0) {
               prfName = "/" + profiles[choose - 1];
               if (saveProfile(prfName.c_str(), prf)) {
@@ -437,7 +449,7 @@ void profileMenu() {
           subSel += profiles[i];
           if (i < profilesCount - 1) subSel += "\n";
         }
-        int choose = u8g2.userInterfaceSelectionList("Delete Profile", 0, subSel.c_str());
+        int choose = noidMenu("Delete Profile", 0, subSel.c_str());
         if (choose != 0) {
           String prfName = "/" + profiles[choose - 1];
           int confirm = u8g2.userInterfaceMessage(
@@ -457,10 +469,6 @@ void profileMenu() {
       } else {
         u8g2.userInterfaceMessage("Sorry but you haven't", "save any profile yet", "go back and save a profile", " Ok ");
       }
-    }
-    if (sel == 5) {
-      String verStr = "Current version: " + String(profileVersion);
-      u8g2.userInterfaceMessage("Profile Version", verStr.c_str(), "", " Ok ");
     }
   }
   l.setBrightness(0);
@@ -492,13 +500,13 @@ void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc) {
       "Source: " + String(srcLabels[srce]) + "\n"
       "Min: "    + String(im, 2) + "\n"
       "Max: "    + String(ix, 2);
-    ssel = u8g2.userInterfaceSelectionList("Input", ssel, sopt.c_str());
+    ssel = noidMenu("Input", ssel, sopt.c_str());
     switch (ssel) {
       case 1: {
         String sList = "";
         for (int i = 0; i < SRC_COUNT; i++)
           sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
-        int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
+        int pick = noidMenu("Input Source", srce + 1, sList.c_str());
         if (pick > 0) {
           srce = pick - 1;
           if (srce < 6)       { im = 0.0f;    ix = 1.0f;   }
@@ -522,13 +530,13 @@ void axsOCfg(uint8_t& destIdx, float& om, float& ox) {
       "Target: " + String(axisOnlyDstLabels[destIdx]) + "\n"
       "Min: "    + String(om, 2) + "\n"
       "Max: "    + String(ox, 2);
-    ssel = u8g2.userInterfaceSelectionList("Output", ssel, sopt.c_str());
+    ssel = noidMenu("Output", ssel, sopt.c_str());
     switch (ssel) {
       case 1: {
         String dList = "";
         for (int i = 0; i < axisOnlyDstCount; i++)
           dList += String(axisOnlyDstLabels[i]) + (i < axisOnlyDstCount - 1 ? "\n" : "");
-        int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
+        int pick = noidMenu("Output Target", destIdx + 1, dList.c_str());
         if (pick > 0) {
           destIdx = pick - 1;
           // mouse axes nhỏ hơn gamepad axes
@@ -571,7 +579,7 @@ void axsAdd(Profile& p) {
     opts += "\nConfirm";
 
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    sel = u8g2.userInterfaceSelectionList("Add Axis Map", sel, opts.c_str());
+    sel = noidMenu("Add Axis Map", sel, opts.c_str());
 
     switch (sel) {
       case 1: axsICfg(srce, im, ix, imuSrc); break;
@@ -579,7 +587,7 @@ void axsAdd(Profile& p) {
       case 3: cmp = !cmp; break;
       case 4: {
         const char* cmbOpts = "None\nAdd (+)\nSubtract (-)";
-        int pick = u8g2.userInterfaceSelectionList("Combine Mode", cmb + 1, cmbOpts);
+        int pick = noidMenu("Combine Mode", cmb + 1, cmbOpts);
         if (pick > 0) cmb = pick - 1;
         break;
       }
@@ -611,14 +619,14 @@ void thrAdd(Profile& p) {
       "Confirm";
 
     u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    sel = u8g2.userInterfaceSelectionList("Add Threshold", sel, opts.c_str());
+    sel = noidMenu("Add Threshold", sel, opts.c_str());
 
     switch (sel) {
       case 1: { // Input source
         String sList = "";
         for (int i = 0; i < SRC_COUNT; i++)
           sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
-        int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
+        int pick = noidMenu("Input Source", srce + 1, sList.c_str());
         if (pick > 0) srce = pick - 1;
         break;
       }
@@ -626,7 +634,7 @@ void thrAdd(Profile& p) {
         String dList = "";
         for (int i = 0; i < threshOnlyDstCount; i++)
           dList += String(threshOnlyDstLabels[i]) + (i < threshOnlyDstCount - 1 ? "\n" : "");
-        int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
+        int pick = noidMenu("Output Target", destIdx + 1, dList.c_str());
         if (pick > 0) destIdx = pick - 1;
         break;
       }
@@ -635,14 +643,14 @@ void thrAdd(Profile& p) {
       case 5: abs_ = valueSet("Abs Threshold", abs_, false, 0.0f, 500.0f); break;
       case 6: {
         if (destIdx == 0) { // OUT_KEY thì chọn keycode, còn OUT_BTN_GP / OUT_MOUSE_BTN thì chọn button index (cũng lưu trong keycode)
-          int pick = u8g2.userInterfaceSelectionList("Keycode", codeToIndex(kc), buttonName);
+          int pick = noidMenu("Keycode", codeToIndex(kc), buttonName);
           if (pick > 0) kc = buttonCode[pick - 1];
         } else {
           String bList = "";
           uint8_t maxBtn = (threshOnlyDstCodes[destIdx] == OUT_BTN_GP) ? 16 : 8; // tối đa 16 nút cho gamepad, 8 nút cho chuột
           for (uint8_t i = 0; i < maxBtn; i++)
             bList += String(i) + (i < maxBtn - 1 ? "\n" : "");
-          int pick = u8g2.userInterfaceSelectionList("Button Index", kc + 1, bList.c_str());
+          int pick = noidMenu("Button Index", kc + 1, bList.c_str());
           if (pick > 0) kc = pick - 1;
         }
         break;
@@ -666,13 +674,13 @@ void editMapping(Profile& p) {
     }
     items += "[Add]";
 
-    int sel = u8g2.userInterfaceSelectionList("Mappings", 1, items.c_str());
+    int sel = noidMenu("Mappings", 1, items.c_str());
     if (sel == 0) break;
 
     if (sel == p.mappingCount + 1) {
       // Add new
       const char* addOpts = "Add Axis\nAdd Threshold";
-      int opt = u8g2.userInterfaceSelectionList("Add Mapping", 1, addOpts);
+      int opt = noidMenu("Add Mapping", 1, addOpts);
       if (opt == 1) axsAdd(p);
       if (opt == 2) thrAdd(p);
 
@@ -682,7 +690,7 @@ void editMapping(Profile& p) {
       const Mapping* m = getMapping(p, idx);
 
       const char* editOpts = "Edit\nDelete";
-      int opt = u8g2.userInterfaceSelectionList(mappingToString(*m).c_str(), 1, editOpts);
+      int opt = noidMenu(mappingToString(*m).c_str(), 1, editOpts);
 
       if (opt == 1) {
         // Edit — không đổi loại, chỉ đổi giá trị
@@ -713,7 +721,7 @@ void editMapping(Profile& p) {
             }
             opts += "\nConfirm";
             u8g2.setFont(u8g2_font_gulim11_t_korean1);
-            esel = u8g2.userInterfaceSelectionList("Edit Axis Map", esel, opts.c_str());
+            esel = noidMenu("Edit Axis Map", esel, opts.c_str());
             bool imuSrc = (srce >= SRC_GYRO_X);
             switch (esel) {
               case 1: axsICfg(srce, im, ix, imuSrc); break;
@@ -721,7 +729,7 @@ void editMapping(Profile& p) {
               case 3: cmp = !cmp; break;
               case 4: {
                 const char* cmbOpts = "None\nAdd (+)\nSubtract (-)";
-                int pick = u8g2.userInterfaceSelectionList("Combine", cmb + 1, cmbOpts);
+                int pick = noidMenu("Combine", cmb + 1, cmbOpts);
                 if (pick > 0) cmb = pick - 1;
                 break;
               }
@@ -755,13 +763,13 @@ void editMapping(Profile& p) {
               "Abs thr: " + String(abs_, 2) + "\n"
               "Keycode: " + (destIdx == 0 ? codeToName(kc) : String(kc)) + "\n"
               "Confirm";
-            esel = u8g2.userInterfaceSelectionList("Edit Threshold", esel, opts.c_str());
+            esel = noidMenu("Edit Threshold", esel, opts.c_str());
             switch (esel) {
               case 1: {
                 String sList = "";
                 for (int i = 0; i < SRC_COUNT; i++)
                   sList += String(srcLabels[i]) + (i < SRC_COUNT - 1 ? "\n" : "");
-                int pick = u8g2.userInterfaceSelectionList("Input Source", srce + 1, sList.c_str());
+                int pick = noidMenu("Input Source", srce + 1, sList.c_str());
                 if (pick > 0) srce = pick - 1;
                 break;
               }
@@ -769,7 +777,7 @@ void editMapping(Profile& p) {
                 String dList = "";
                 for (int i = 0; i < threshOnlyDstCount; i++)
                   dList += String(threshOnlyDstLabels[i]) + (i < threshOnlyDstCount - 1 ? "\n" : "");
-                int pick = u8g2.userInterfaceSelectionList("Output Target", destIdx + 1, dList.c_str());
+                int pick = noidMenu("Output Target", destIdx + 1, dList.c_str());
                 if (pick > 0) destIdx = pick - 1;
                 break;
               }
@@ -778,14 +786,14 @@ void editMapping(Profile& p) {
               case 5: abs_ = valueSet("Abs Threshold", abs_, false, 0.0f, 500.0f); break;
               case 6: {
                 if (destIdx == 0) { // OUT_KEY thì chọn keycode, còn OUT_BTN_GP / OUT_MOUSE_BTN thì chọn button index (cũng lưu trong keycode)
-                  int pick = u8g2.userInterfaceSelectionList("Keycode", codeToIndex(kc), buttonName);
+                  int pick = noidMenu("Keycode", codeToIndex(kc), buttonName);
                   if (pick > 0) kc = buttonCode[pick - 1];
                 } else {
                   String bList = "";
                   uint8_t maxBtn = (threshOnlyDstCodes[destIdx] == OUT_BTN_GP) ? 16 : 8;
                   for (uint8_t i = 0; i < maxBtn; i++)
                     bList += String(i) + (i < maxBtn - 1 ? "\n" : "");
-                  int pick = u8g2.userInterfaceSelectionList("Button Index", kc + 1, bList.c_str());
+                  int pick = noidMenu("Button Index", kc + 1, bList.c_str());
                   if (pick > 0) kc = pick - 1;
                 }
                 break;

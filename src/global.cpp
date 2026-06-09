@@ -1,6 +1,7 @@
 #include "global.h"
 
-const String ver = "v2.2.7";
+const String ver = "v2.6.3";
+bool firstTime = false;
 
 int  usbMode = 0;
 bool withBLE = false;
@@ -25,13 +26,17 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 );
 
 // Analog
-int deadZone = 32;
+int deadZone[3] = {32, 32, 32};
 float calMax[3] = {2600, 2700, 2800};
 float calMin[3] = {2200, 2300, 2300};
 float  hallVal[3] = { 0.00,  0.00,  0.00};
 int rawVal[3] = {0, 0, 0};
 bool doFilter = false;
 int filterType = 0;
+int ovsSamples = 16;
+float emaAlpha = 0.05;
+bool hallDisplayAsKT= true;
+float keyTravel = 4.5;
 
 // Buttons
 bool  nowPress[6] = {false};

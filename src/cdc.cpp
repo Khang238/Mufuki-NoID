@@ -1,13 +1,13 @@
 #include "cdc.h"
 #include "profile.h"
 #include "visplayer.h"
+#include "mbedtls/base64.h"
 
 CDCMode cdcMode = CDC_RR;
 
-static File uploadFile;
-static size_t uploadExpected = 0;
-static size_t uploadReceived = 0;
-static bool uploading = false;
+static File     uploadFile;
+static bool     uploading    = false;
+static int      lastChunkIdx = -1;
 
 static void sendOk() {
   CDCUSBSerial.println("{\"ok\":true}");
@@ -64,14 +64,13 @@ static void processCommand(const String& raw) {
     resp["ok"] = true;
     JsonObject data = resp.createNestedObject("data");
 
-    data["um"] = prf.usbMode;
+    data["um"] = usbMode;
     data["bl"] = prf.ble;
     data["ih"] = prf.inputHandler;
     data["at"] = prf.actuation;
     data["ws"] = prf.windowSize;
     data["ut"] = prf.upperThreshold;
     data["lt"] = prf.lowerThreshold;
-    data["dz"] = prf.deadZone;
     data["df"] = prf.doFilter;
     data["ft"] = prf.filterType;
     data["sb"] = prf.screenBri;
@@ -87,6 +86,7 @@ static void processCommand(const String& raw) {
     data["rs"] = prf.rainbowStep;
     data["ri"] = prf.rgbInterval;
     data["bn"] = prf.btName;
+    for (int i = 0; i < 3; i++) data["dz"][i] = prf.deadZone[i];
     for (int i = 0; i < 3; i++) data["cx"][i] = prf.calMax[i];
     for (int i = 0; i < 3; i++) data["cm"][i] = prf.calMin[i];
     for (int i = 0; i < 6; i++) data["lo"][i] = prf.layout[i];
@@ -124,7 +124,6 @@ static void processCommand(const String& raw) {
     prf.windowSize     = data["ws"] | prf.windowSize;
     prf.upperThreshold = data["ut"] | prf.upperThreshold;
     prf.lowerThreshold = data["lt"] | prf.lowerThreshold;
-    prf.deadZone       = data["dz"] | prf.deadZone;
     prf.doFilter       = data["df"] | prf.doFilter;
     prf.filterType     = data["ft"] | prf.filterType;
     prf.screenBri      = data["sb"] | prf.screenBri;
@@ -142,6 +141,8 @@ static void processCommand(const String& raw) {
       strncpy(prf.screenLogo, data["sl"].as<const char*>(), sizeof(prf.screenLogo) - 1);
     if (data["bn"].is<const char*>())
       strncpy(prf.btName, data["bn"].as<const char*>(), sizeof(prf.btName) - 1);
+    if (data["dz"].is<JsonArray>())
+      for (int i = 0; i < 3; i++) prf.deadZone[i] = data["dz"][i] | prf.deadZone[i];
     if (data["cx"].is<JsonArray>())
       for (int i = 0; i < 3; i++) prf.calMax[i] = data["cx"][i] | prf.calMax[i];
     if (data["cm"].is<JsonArray>())
@@ -195,21 +196,39 @@ static void processCommand(const String& raw) {
 
   } else if (strcmp(cmd, "animStart") == 0) {
     const char* name = doc["data"]["name"] | "anim";
-    uploadExpected   = doc["data"]["size"] | 0;
-    if (uploadExpected == 0) { sendErr("no size"); return; }
     String path = "/" + String(name) + ".vis";
+    if (uploading && uploadFile) uploadFile.close();
     uploadFile = LittleFS.open(path, "w");
     if (!uploadFile) { sendErr("open failed"); return; }
-    uploadReceived = 0;
-    uploading = true;
+    uploading    = true;
+    lastChunkIdx = -1;
     sendOk();
+
+  } else if (strcmp(cmd, "animChunk") == 0) {
+    if (!uploading) { sendErr("not uploading"); return; }
+    int idx = doc["data"]["i"] | -1;
+    const char* b64 = doc["data"]["d"] | "";
+    if (idx != lastChunkIdx + 1) {
+      sendErr("wrong chunk index"); return;
+    }
+    // decode base64
+    size_t b64Len = strlen(b64);
+    size_t outLen = 0;
+    uint8_t buf[256];
+    int ret = mbedtls_base64_decode(buf, sizeof(buf), &outLen,
+                                    (const uint8_t*)b64, b64Len);
+    if (ret != 0) { sendErr("b64 decode failed"); return; }
+    uploadFile.write(buf, outLen);
+    uploadFile.flush();
+    lastChunkIdx = idx;
+    CDCUSBSerial.printf("{\"ok\":true,\"i\":%d}\n", idx);
+    CDCUSBSerial.flush();
 
   } else if (strcmp(cmd, "animEnd") == 0) {
     if (!uploading) { sendErr("not uploading"); return; }
     uploadFile.close();
     uploading = false;
     sendOk();
-
   } else if (strcmp(cmd, "animList") == 0) {
     // list file .vis
     DynamicJsonDocument resp(512);
@@ -232,30 +251,17 @@ static void processCommand(const String& raw) {
 
   } else if (strcmp(cmd, "animStop") == 0) {
     visStop(); sendOk();
-  } else {
+  } else if (strcmp(cmd, "rmani") == 0) {
+    LittleFS.remove("/idle.vis");
+  }
+   else {
     sendErr("unknown command");
   }
 }
 
 void handleCDC() {
   if (!CDCUSBSerial) return;
-
-  if (uploading && CDCUSBSerial.available()) {
-    uint8_t buf[256];
-    int n = CDCUSBSerial.read(buf, min((int)sizeof(buf),
-                              (int)(uploadExpected - uploadReceived)));
-    if (n > 0) {
-      uploadFile.write(buf, n);
-      uploadReceived += n;
-      // ACK mỗi chunk
-      CDCUSBSerial.printf("{\"ok\":true,\"recv\":%d}\n", uploadReceived);
-      CDCUSBSerial.flush();
-    }
-    return; // không xử lý command khi đang upload
-  }
-
   if (cdcMode == CDC_STREAM) sendSensorEvent();
-
   if (CDCUSBSerial.available()) {
     String raw = CDCUSBSerial.readStringUntil('\n');
     raw.trim();

@@ -1,6 +1,9 @@
 // visplayer.cpp
 #include "visplayer.h"
 
+#define VIS_HEADER_SIZE 7
+#define INITIAL_FRAME_SIZE (TILES_X * TILES_Y * TILE_BYTES)
+
 #define TILE_W 8
 #define TILE_H 8
 #define TILES_X 16
@@ -33,22 +36,21 @@ bool visLoad(const char* path) {
   visFile = LittleFS.open(path, "r");
   if (!visFile) return false;
 
-  // check magic
-  char magic[2];
-  visFile.read((uint8_t*)magic, 2);
+  uint8_t magic[2];
+  visFile.read(magic, 2);
   if (magic[0] != 'V' || magic[1] != 'S') { visFile.close(); return false; }
 
-  // header
   uint8_t hdr[5];
   visFile.read(hdr, 5);
   visFps = hdr[0];
-  // hdr[1..4] = tilesX, tilesY, tileW, tileH — bỏ qua vì fixed
+  // hdr[1..4] bỏ qua, dùng constant
 
-  // đọc initial frame
+  // đọc initial frame vào screenBuf
   for (int ty = 0; ty < TILES_Y; ty++)
     for (int tx = 0; tx < TILES_X; tx++)
       visFile.read(screenBuf[ty][tx], TILE_BYTES);
 
+  // visFile position bây giờ đúng ở delta frame đầu tiên
   isFirstFrame = true;
   playing = true;
   return true;
@@ -75,8 +77,8 @@ void visPlay() {
     uint8_t tileCount = 0;
     if (visFile.read(&tileCount, 1) != 1) {
       // hết file → loop lại
-      visFile.seek(2 + 5 + TILES_X * TILES_Y * TILE_BYTES);
-      isFirstFrame = true;
+      visFile.seek(VIS_HEADER_SIZE + INITIAL_FRAME_SIZE);
+      isFirstFrame = false;
       return;
     }
 

@@ -33,6 +33,7 @@
 #include "img.h"
 
 extern const String ver;
+extern bool firstTime;
 
 extern int  usbMode;
 extern bool withBLE;
@@ -56,17 +57,21 @@ constexpr int adcPins[3] = {1, 2, 3};        // Hall switch
 constexpr int ledPins[3] = {7, 6, 5};        // LED output
 constexpr int btnPins[4] = {5, 6, 12, 13};   // Buttons
 
-extern int deadZone;
+extern int deadZone[3];
 extern float calMax[3];
 extern float calMin[3];
 extern float  hallVal[3];
 extern int rawVal[3];
 extern bool doFilter;
 extern int filterType;
+extern int ovsSamples;
+extern float emaAlpha;
 
 extern bool  nowPress[6];
 extern bool lastPress[6];
 extern uint8_t layout[6];
+extern bool hallDisplayAsKT;
+extern float keyTravel;
 
 extern int inputHandler;
 extern float actuation;

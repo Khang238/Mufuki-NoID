@@ -17,12 +17,12 @@ int expoMovAvr(int chan, float alpha) {
 
 void readHall(int i) {
   if (doFilter) {
-    if (filterType == 0) rawVal[i] = overSample(i);
-    else rawVal[i] = expoMovAvr(i);
+    if (filterType == 0) rawVal[i] = overSample(i, ovsSamples);
+    else rawVal[i] = expoMovAvr(i, emaAlpha);
   } else rawVal[i] = analogRead(adcPins[i]);
   hallVal[i] = constrain(
-    (float)(rawVal[i] - calMin[i] - deadZone) /
-    (float)(calMax[i] - calMin[i] - 2 * deadZone),
+    (float)(rawVal[i] - calMin[i] - deadZone[i]) /
+    (float)(calMax[i] - calMin[i] - 2 * deadZone[i]),
     0.00, 1.00
   );
 }
@@ -96,17 +96,18 @@ void updateInput() {
   }
 }
 
-int getButton() {
+int getButton(bool hold) {
   for (int i = 0; i < 4; i++) {
     if (!digitalRead(btnPins[i])) {
+      if (hold) return i;
       if (!holding[i]) {
         pressTime[i] = millis();
         holding[i] = true;
+        return i;
       }
     } else {
       if (holding[i]) {
         holding[i] = false;
-        return i;
       }
     }
   }
@@ -237,9 +238,7 @@ void setupMorse() {
 bool morseMode = true;
 String keyboard(String text) {
   String prevText = text;
-  bool lastFilterState = doFilter;
   if (morseMode) {
-    doFilter = false; // can be annoying
     bool capsLock = false;
     setupMorse();
     bool typing = true;
@@ -305,7 +304,6 @@ String keyboard(String text) {
       u8g2.sendBuffer();
     }
   }
-  doFilter = lastFilterState;
   root = {'\0', nullptr, nullptr}; // destroy the tree to save memory
   return text;
 }
@@ -325,14 +323,14 @@ void keypadMUI() {
   u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
   switch (inputHandler) {
-    case 0: tmp = "DGE" ; break;
+    case 0: tmp = "DEM" ; break;
     case 1: tmp = "HSR"  ; break;
-    case 2: tmp = "DMA"  ; break;
+    case 2: tmp = "DAC"  ; break;
   }
   u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
-  if (inputHandler == 1) tmp = "Acc: +" + String(upperThreshold, 2) + " -" + String(lowerThreshold, 2);
-  else                   tmp = "Actuation: " + String(inputHandler == 0 ? actuation : windowSize);
+  if (inputHandler == 1) tmp = "Acc: +" + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1), 2) + " -" + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1), 2);
+  else                   tmp = "Actuation: " + String(inputHandler == 0 ? actuation * (hallDisplayAsKT ? keyTravel : 1) : windowSize * (hallDisplayAsKT ? keyTravel : 1)) +  (hallDisplayAsKT ? "mm" : "");
   u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
 
   //float maxPress = 0.00;
@@ -342,7 +340,7 @@ void keypadMUI() {
     u8g2.drawFrame(43 * i - 1, 55, 44, 10);
     u8g2.drawBox(43 * i, 55, (int)(hallVal[i] * 43), 10);
     u8g2.setDrawColor(2);
-    String line = String(hallVal[i], 2);
+    String line = hallDisplayAsKT ? (String(hallVal[i] * keyTravel, 1) + "mm") : String(hallVal[i], 2);
     u8g2.drawStr(1 + 43 * i, 63, line.c_str());
     u8g2.setDrawColor(1);
     //maxPress = max(maxPress, hallVal[i]);
