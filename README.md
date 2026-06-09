@@ -4,6 +4,7 @@
 - I've added **quite a few** new updates, including **process separation, new UI, easier-to-understand units, layout redesign, etc.** So if you've ever used Mufuki, you might have to relearn how the new UI is laid out.
 - The new COM app is only built to its basic state using AI. This part gave me quite a headache because I had to balance cross-platform compatibility and ease of development, so for now, please enjoy the AI ​​slop I created.
 - The Wiki will be fixed soon, don't worry.
+- By the way, I used Wokwi to create a Mufuki emulator right in VS Code; you can check it out (if your PC is powerful enough to run the emulator).
 
 ## Updated:
 - New UI Style (not font)
