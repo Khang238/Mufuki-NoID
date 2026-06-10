@@ -135,16 +135,19 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
 
   float lift = 0;
   const float maxLift = 10;
+  float titleFly = 64;
 
   unsigned long hldTimer = 0;
   unsigned long movTimer = 0;
   int movDir = 0;
   bool hld = false;
 
+  const int contentWidth = 122;
+  const int sbX = 124;
+  const int sbW = 4;
+
   while (true) {
     int btn = getButton(true);
-    // case 0: selected = (selected - 1 + count) % count; lift = 0; break;
-    // case 2: selected = (selected + 1) % count; lift = 0; break;
     if (btn == 3) {while (getButton(true) == 3) delay(10); return 0;}
     if (btn == 1) {while (getButton(true) == 1) delay(10); return selected + 1;}
     if (!hld) {
@@ -185,6 +188,7 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
 
     windowPos += (targetWindowPos - windowPos) * 0.5;
     lift += (maxLift - lift) * 0.25;
+    titleFly += (2 - titleFly) * 0.25;
 
     u8g2.clearBuffer();
     for (int i = 0; i < count; i++) {
@@ -203,20 +207,35 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
         }
       }
     }
+    
     u8g2.setDrawColor(2); 
-    u8g2.drawRBox(0, titleH + (selBox - windowPos), 128, boxH, 1);
+    u8g2.drawRBox(0, titleH + (selBox - windowPos), contentWidth, boxH, 1);
+    
+    u8g2.setDrawColor(1);
+    int totalContentH = count * boxH;
+    if (totalContentH > viewH) {
+      int sbH = (viewH * viewH) / totalContentH;
+      if (sbH < 4) sbH = 4;
+      
+      int sbY = titleH + ((viewH - sbH) * windowPos) / maxWindowPos;
+      
+      u8g2.drawVLine(sbX + sbW / 2, titleH, viewH);
+      u8g2.drawRBox(sbX, sbY, sbW, sbH, 1);
+    }
+
+    // 3. Clear title area and draw header
     u8g2.setDrawColor(0); 
     u8g2.drawBox(0, 0, 128, titleH - 2);
     u8g2.setDrawColor(1);
     if (titleH > 0) {
       u8g2.setDrawColor(1);
       u8g2.setFontMode(1);
-      u8g2.drawStr(2, fontH, title);
+      u8g2.drawStr(titleFly, fontH, title);
       u8g2.drawHLine(0, titleH - 2, 128);
     }
     u8g2.sendBuffer();
   }
-}
+} 
 
 void calibMenu() {
   bool running = true;

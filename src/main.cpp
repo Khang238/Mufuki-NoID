@@ -71,10 +71,10 @@ void mainMenu() {
         }
       } break;
       case 2: if (usbMode == 0) layoutChangeMenu(); else editMapping(prf); break;
-      case 3: effectMenu();
-      case 4: connectMenu();
-      case 5: profileMenu();
-      case 6: systemMenu();
+      case 3: effectMenu(); break;
+      case 4: connectMenu(); break;
+      case 5: profileMenu(); break;
+      case 6: systemMenu(); break;
       default: break;
     }
   }
@@ -100,9 +100,6 @@ class CSCDCCallbacks : public CDCCallbacks {
 };
 
 void hidTask(void* param) {
-  TickType_t lastWakeTime = xTaskGetTickCount();
-  const TickType_t loopPeriod = pdMS_TO_TICKS(1);  // ~1000Hz
-
   while (true) {
     if (tud_ready() && !menuOpen) {
       switch (usbMode) {
@@ -126,6 +123,7 @@ void displayTask(void* param) {
     static unsigned long lastCDC = 0;
     if (micros() - lastCDC >= 10000) {
       handleCDC(); lastCDC = micros();
+      if (usbMode != 0) mpu.update();
     }
 
     // F4 Key (Menu)
@@ -148,7 +146,7 @@ void displayTask(void* param) {
           screenOff = false;
         }
       }
-      if (250 < millis() - bt4time && millis() - bt4time < 500 && bt4Hold) {
+      if (250 < millis() - bt4time && millis() - bt4time < 1000 && bt4Hold) {
         u8g2.clearBuffer();
         const char *tmp = "Calibrating...";
         u8g2.drawStr(64 - u8g2.getStrWidth(tmp) / 2, 32 - u8g2.getMaxCharHeight() / 2, tmp);
@@ -347,137 +345,3 @@ void loop() {
     rate = 0;
   }
 }
-
-/*
-void loop() {
-
-  if (micros() - lastLoopTime < LOOP_INTERVAL_US) return;
-  lastLoopTime += LOOP_INTERVAL_US;
-
-  // updateInput();
-  if (usbMode != 0) mpu.update();
-  
-  if (tud_ready()) {
-    switch (usbMode) {
-      case 0: handleKeypad(); break;
-      case 1: handleGamepad(); break;
-      case 2: handleMouse(); break;
-      default: handleKeypad(); break;
-    }
-  }
-
-  static unsigned long lastCDCTime = 0;
-  unsigned long now = micros();
-  if (now - lastCDCTime >= 100000) { // 100Hz, tách khỏi HID 1000Hz
-    handleCDC();
-    lastCDCTime = now;
-  }
-
-  // F4 Key (Menu)
-  if (digitalRead(btnPins[3]) == LOW) {
-    if (!bt4Hold) {
-      bt4Hold = true;
-      bt4time = millis();
-    }
-    if (millis() - bt4time > 250 && bt4Hold) mpu.calcOffsets();
-    if (millis() - bt4time > 500 && bt4Hold) {mainMenu(); waitIDLE = millis(); fromMenu = true;}
-    if (screenOff) u8g2.setPowerSave(0);
-    screenWait = false;
-    screenOff = false;
-  } else {
-    if (bt4Hold && !fromMenu) {
-      if (millis() - waitIDLE < 5000) waitIDLE = millis() - 5000;
-      else {
-        waitIDLE = millis();
-        u8g2.setPowerSave(0);
-        screenWait = false;
-        screenOff = false;
-      }
-    }
-    fromMenu = false;
-    bt4Hold = false;
-  }
-
-  // Effects
-  if (underGlow) {
-    switch (glowType) {
-      case 0:
-        for (int i = 0; i < 3; i++) {
-          ledOutput[i] = 0;
-          if (applyEffect[i]) {
-            singleFade[i].active = true;
-            singleFade[i].startTime = millis();
-            applyEffect[i] = false;
-          }
-        }
-        updateSingleFade();
-        underGlowUpdate();
-      break;
-      case 1:
-        for (int i = 0; i < 3; i++) {
-          ledOutput[i] = 0;
-          if (applyEffect[i]) {
-            addRippleWave(i);
-            applyEffect[i] = false;
-          }
-        }
-        updateRipple();
-        underGlowUpdate();
-      break;
-      case 2:
-        udgSmooth(); // handled in its own function
-      break;
-      case 3:
-        udgBurnIn(); // also this
-      break;
-      case 4:
-        udgAnalog();
-      break;
-      case 5:
-        udgSoild();
-      break;
-      default:
-      break;
-    }
-  }
-
-  if (rgb && doRainbow) {
-    if (millis() - lastRGBUpdate > rgbInterval * 10) {
-      lastRGBUpdate = millis();
-      static uint16_t hue = 0;
-      hue += 128 + rainbowStep;
-      l.rainbow(hue, 1, 255, rgbBri, true);
-      l.show();
-    }
-  }
-
-  // Screen
-  if (millis() - waitIDLE < screenSaveDuration) {
-    switch (usbMode) {
-      case 0: keypadMUI(); break;
-      case 1: gamepadMUI(); break;
-      case 2: mouseMUI(); break;
-      default: keypadMUI(); break;
-    }
-  }
-  else if (millis() - waitIDLE < screenSaveDuration + screenOffDuration) {
-    if (!screenWait) {
-      screenSaver("NoID");
-      screenWait = true;
-    }
-  }
-  else {
-    if (!screenOff) {
-      u8g2.clearBuffer();
-      u8g2.sendBuffer();
-      u8g2.setPowerSave(1);
-      screenOff = true;
-    }
-  }
-}
-*/
-
-// dear developers, i'm making a big move
-// since this project is getting bigger and bigger, i'm trying to split the code so it's more manageable and easy to modify
-// though this will take a lot of time, so stay tuned
-// - NoID signed -

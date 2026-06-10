@@ -512,7 +512,7 @@ void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc) {
           if (srce < 6)       { im = 0.0f;    ix = 1.0f;   }
           else if (srce < 9)  { im = -500.0f; ix = 500.0f; }
           else if (srce < 12) { im = -2.0f;   ix = 2.0f;   }
-          else                { im = -180.0f; ix = 180.0f; }
+          else                { im = -70.0f; ix = 70.0f; }
         }
         break;
       }
