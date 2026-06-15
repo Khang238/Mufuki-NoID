@@ -319,7 +319,7 @@ void keypadMUI() {
   u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 15, tmp.c_str());
   tmp = String(lastRate) + "rps";
   u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 15, tmp.c_str());
-  tmp = "Keypad";
+  tmp = withBLE ? "BLE Key" : "Keypad" ;
   u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
   switch (inputHandler) {
@@ -329,9 +329,10 @@ void keypadMUI() {
   }
   u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
-  if (inputHandler == 1) tmp = "Acc: +" + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1), 2) + " -" + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1), 2);
-  else                   tmp = "Actuation: " + String(inputHandler == 0 ? actuation * (hallDisplayAsKT ? keyTravel : 1) : windowSize * (hallDisplayAsKT ? keyTravel : 1)) +  (hallDisplayAsKT ? "mm" : "");
-  u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
+  if (inputHandler == 1) tmp = "Act: +" + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1), 2) + " -" + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1), 2);
+  else                   tmp = "Act: " + String(inputHandler == 0 ? actuation * (hallDisplayAsKT ? keyTravel : 1) : windowSize * (hallDisplayAsKT ? keyTravel : 1)) +  (hallDisplayAsKT ? "mm" : "");
+  if (withBLE && !kblue->isConnected()) u8g2.drawStr(64 - u8g2.getStrWidth("Not Connected") / 2, 48, "Not Connected");
+  else u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
 
   //float maxPress = 0.00;
   u8g2.setFont(u8g2_font_5x8_tr);
@@ -366,8 +367,9 @@ void mouseMUI() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
-  u8g2.drawStr(0, 18, "Mode: Mouse");
+  u8g2.drawStr(0, 18, withBLE ? "Mode: BLE Mouse" : "Mode: Mouse");
   u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
+  if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
   u8g2.drawFrame(4, 30, 32, 32); // mouse direction
   int centerX = 20, centerY = 46;
   int cursorX = centerX + (int)(mos.mouseX * 16 / 127);
@@ -394,8 +396,9 @@ void gamepadMUI() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_5x8_tr);
   u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
-  u8g2.drawStr(0, 18, "Mode: Gamepad");
+  u8g2.drawStr(0, 18, withBLE ? "Mode: BLE Gamepad" : "Mode: Gamepad");
   u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
+  if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
   u8g2.drawFrame(4, 30, 24, 24); // left stick
   int centerX = 16, centerY = 42;
   int cursorX = centerX + (int)(mos.axes[0] * 12 / 127);
@@ -437,6 +440,6 @@ void handleGamepad() {
     mos.axes[3],      // rz = RY
     mos.axes[4],      // rx = LT
     mos.axes[5],      // ry = RT
-    0                   // hat (D-pad, không dùng → 0)
+    0                   // hat (D-pad, not used → 0)
   );
 }

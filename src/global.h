@@ -9,7 +9,7 @@
 #include <LittleFS.h>
 #include <BleGamepad.h>
 #include <ArduinoOTA.h>
-//#include <BleMouse.h>
+#include <BleMouse.h>
 #include <ArduinoJson.h>
 #include <BleKeyboard.h>
 #include <NimBLEDevice.h>
@@ -49,6 +49,10 @@ extern HIDkeyboard dev;
 extern HIDgamepad gdev;
 extern HIDmouse mdev;
 extern CDCusb CDCUSBSerial;
+
+extern BleGamepad* gblue;
+extern BleKeyboard* kblue;
+extern BleMouse* mlue;
 
 extern MPU6050 mpu;
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;

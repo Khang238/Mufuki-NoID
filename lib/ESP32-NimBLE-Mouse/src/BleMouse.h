@@ -31,6 +31,7 @@ class BleMouse : protected NimBLEServerCallbacks {
     void setBatteryLevel(uint8_t level);
     void onConnect(Callback cb);
     void onDisconnect(Callback cb);
+    NimBLECharacteristic* inputMouse;
 
   protected:
     void buttons(uint8_t b);
@@ -41,7 +42,6 @@ class BleMouse : protected NimBLEServerCallbacks {
   protected:
     uint8_t               _buttons;
     NimBLEHIDDevice*      hid;
-    NimBLECharacteristic* inputMouse;
 
     uint8_t     batteryLevel;
     std::string deviceManufacturer;

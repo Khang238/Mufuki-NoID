@@ -1,6 +1,6 @@
 #include "global.h"
 
-const String ver = "v2.6.3";
+const String ver = "v2.6.5";
 bool firstTime = false;
 
 int  usbMode = 0;
@@ -18,6 +18,10 @@ HIDkeyboard dev;
 HIDgamepad gdev;
 HIDmouse mdev;
 CDCusb CDCUSBSerial;
+
+BleGamepad* gblue;
+BleKeyboard* kblue;
+BleMouse* mlue;
 
 MPU6050 mpu(Wire);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(

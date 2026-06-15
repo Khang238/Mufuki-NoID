@@ -140,18 +140,56 @@ void displayTask(void* param) {
       if (bt4Hold && !fromMenu) {
         if (millis() - waitIDLE < 5000) waitIDLE = millis() - 5000;
         else {
-          waitIDLE = millis();
           u8g2.setPowerSave(0);
+          waitIDLE = millis();
           screenWait = false;
           screenOff = false;
         }
       }
-      if (250 < millis() - bt4time && millis() - bt4time < 1000 && bt4Hold) {
+      if (bt4Hold && 500 < millis() - bt4time && millis() - bt4time < 1000 && (withBLE ? kblue->isConnected() : tud_ready())) {
         u8g2.clearBuffer();
         const char *tmp = "Calibrating...";
         u8g2.drawStr(64 - u8g2.getStrWidth(tmp) / 2, 32 - u8g2.getMaxCharHeight() / 2, tmp);
         u8g2.sendBuffer();
         mpu.calcOffsets();
+      } 
+      if (300 < millis() - bt4time && millis() - bt4time < 500 && bt4Hold) {
+        u8g2.setPowerSave(0);
+        menuOpen = true;
+        String text = keyboard("");
+        int lineCount = 0;
+        u8g2.clearBuffer();
+        if (text != "") {
+          for (int i = 0; i < text.length(); i++) {
+            bool shift;
+            uint8_t key = charToKey((char)text[i], shift);
+            if (key) {
+              KeyReport report = {0};
+              report.modifiers = shift ? KEYBOARD_MODIFIER_LEFTSHIFT : 0;
+              report.keys[0] = key;
+              uint8_t keycodes[6] = {key, 0, 0, 0, 0, 0};
+              if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              delay(randRange(10, 80));
+              report.modifiers = 0;
+              report.keys[0] = 0;
+              keycodes[0] = 0;
+              if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              String tmpText = String(i) + ". char: "
+              + String(char(text[i])) + ", code: 0x" + String(key, HEX);
+              u8g2.setDrawColor(0);
+              u8g2.drawBox(0, lineCount * 10, 128, 10);
+              u8g2.setDrawColor(1);
+              u8g2.drawStr(0, 10 + lineCount * 10, tmpText.c_str());
+              u8g2.sendBuffer();
+              lineCount = (lineCount + 1) % 6;
+              delay(randRange(10, 80));
+            }
+          }
+        }
+        screenWait = false;
+        screenOff = false;
+        menuOpen = false;
+        waitIDLE = millis();
       }
       fromMenu = false;
       bt4Hold = false;
@@ -306,18 +344,46 @@ void setup() {
   if (!loadProfile(configPath.c_str(), prf)) {
     saveProfile(configPath.c_str(), prf); // fallback to default
   }
-  dev.setBaseEP(3);
-  gdev.setBaseEP(3);
-  if (usbMode == 1) gdev.deviceID(vpidPair[vpidSet][0], vpidPair[vpidSet][1]);
-  switch (usbMode) {
-    case 0: dev.begin(); break;
-  mdev.setBaseEP(3);
-    case 1: gdev.begin(); break;
-    case 2: mdev.begin(); break;
-    default: dev.begin(); break;
+  if (withBLE) {
+    switch (usbMode) {
+      case 0: {
+        kblue = new BleKeyboard(btName.c_str(), "NoID", 100);
+        kblue->begin();
+      } break;
+      case 1: {
+        gblue = new BleGamepad(btName.c_str(), "NoID", 100);
+        BleGamepadConfiguration cfg;
+        cfg.setAutoReport(false);
+        cfg.setAxesMax(127);
+        cfg.setAxesMin(-127);
+        cfg.setVid(vpidPair[vpidSet][0]);
+        cfg.setPid(vpidPair[vpidSet][1]);
+        gblue->begin(&cfg);
+        break;
+      }
+      case 2: {
+        mlue = new BleMouse(btName.c_str(), "NoID", 100);
+        mlue->begin();
+      } break;
+      default: {
+        kblue = new BleKeyboard(btName.c_str(), "NoID", 100);
+        kblue->begin();
+      } break;
+    }
+  } else {
+    dev.setBaseEP(3);
+    gdev.setBaseEP(3);
+    mdev.setBaseEP(3);
+    if (usbMode == 1) gdev.deviceID(vpidPair[vpidSet][0], vpidPair[vpidSet][1]);
+    switch (usbMode) {
+      case 0: dev.begin(); break;
+      case 1: gdev.begin(); break;
+      case 2: mdev.begin(); break;
+      default: dev.begin(); break;
+    }
+    CDCUSBSerial.begin();
+    CDCUSBSerial.setCallbacks(new CSCDCCallbacks());
   }
-  CDCUSBSerial.begin();
-  CDCUSBSerial.setCallbacks(new CSCDCCallbacks());
   waitIDLE = millis();
     if (rgb) {
     l.setBrightness(rgbBri);

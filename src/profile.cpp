@@ -9,6 +9,8 @@ OutputState mos;
 
 void unpackProfile(Profile& p) {
 
+  LOOP_INTERVAL_US = p.LIU;
+
   // Input
   inputHandler = p.inputHandler;
   actuation = p.actuation;
@@ -46,6 +48,8 @@ void unpackProfile(Profile& p) {
 }
 
 void packProfile(Profile& p) {
+
+  p.LIU = LOOP_INTERVAL_US;
 
   // Input
   p.inputHandler = inputHandler;
@@ -91,6 +95,8 @@ bool saveProfile(const char* path, Profile& p) {
   DynamicJsonDocument doc(3072);
 
   doc["version"] = 1;
+
+  doc["liu"] = p.LIU;
 
   doc["pt"] = 2;
   doc["um"] = p.usbMode;
@@ -165,6 +171,8 @@ bool loadProfile(const char* path, Profile& p) {
 
   p.usbMode = doc["um"] | p.usbMode;
   p.ble     = doc["bl"] | p.ble;
+
+  p.LIU = doc["liu"] | p.LIU;
 
   // Input
   p.inputHandler   = doc["ih"] | p.inputHandler;

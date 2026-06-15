@@ -116,6 +116,10 @@ bool getItem(const char* items, int index, char* out, size_t outSize) {
   return true;
 }
 
+char globalTitle[32] = "NoID_Mufuki";
+float globalTitleFloat[32] = {0};
+bool isTitleInitialized = false;
+
 int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph, const char* glyph) {
   while (getButton(true) != -1) {delay(10);}
   if (startIndex > 0) startIndex--;
@@ -125,7 +129,11 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
   int fontH = u8g2.getMaxCharHeight();
   int boxH = fontH + 2;
   
-  int titleH = (title != nullptr && strlen(title) > 0) ? (fontH + 4) : 0;
+  const char* targetTitle = (title != nullptr) ? title : "";
+  int targetLen = strlen(targetTitle);
+  if (targetLen > 31) targetLen = 31;
+
+  int titleH = (targetLen > 0) ? (fontH + 4) : 0;
   int viewH = 64 - titleH;
 
   float selBox = selected * boxH;
@@ -135,7 +143,6 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
 
   float lift = 0;
   const float maxLift = 10;
-  float titleFly = 64;
 
   unsigned long hldTimer = 0;
   unsigned long movTimer = 0;
@@ -145,6 +152,13 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
   const int contentWidth = 122;
   const int sbX = 124;
   const int sbW = 4;
+
+  if (!isTitleInitialized) {
+    for (int i = 0; i < 32; i++) {
+      globalTitleFloat[i] = (float)globalTitle[i];
+    }
+    isTitleInitialized = true;
+  }
 
   while (true) {
     int btn = getButton(true);
@@ -188,7 +202,22 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
 
     windowPos += (targetWindowPos - windowPos) * 0.5;
     lift += (maxLift - lift) * 0.25;
-    titleFly += (2 - titleFly) * 0.25;
+
+    if (titleH > 0) {
+      int currentLen = strlen(globalTitle);
+      int maxLen = (targetLen > currentLen) ? targetLen : currentLen;
+      if (maxLen > 31) maxLen = 31;
+
+      for (int i = 0; i < maxLen; i++) {
+        float tar = (i < targetLen) ? (float)targetTitle[i] : 32.0f;
+        globalTitleFloat[i] += (tar - globalTitleFloat[i]) * 0.25;
+        int asciiVal = (int)(globalTitleFloat[i] + 0.5f);
+        if (asciiVal < 32) asciiVal = 32;
+        if (asciiVal > 126) asciiVal = 126;
+        globalTitle[i] = (char)asciiVal;
+      }
+      globalTitle[maxLen] = '\0';
+    }
 
     u8g2.clearBuffer();
     for (int i = 0; i < count; i++) {
@@ -223,19 +252,19 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
       u8g2.drawRBox(sbX, sbY, sbW, sbH, 1);
     }
 
-    // 3. Clear title area and draw header
     u8g2.setDrawColor(0); 
     u8g2.drawBox(0, 0, 128, titleH - 2);
     u8g2.setDrawColor(1);
+    
     if (titleH > 0) {
       u8g2.setDrawColor(1);
       u8g2.setFontMode(1);
-      u8g2.drawStr(titleFly, fontH, title);
+      u8g2.drawStr(4, fontH, globalTitle);
       u8g2.drawHLine(0, titleH - 2, 128);
     }
     u8g2.sendBuffer();
   }
-} 
+}
 
 void calibMenu() {
   bool running = true;
@@ -904,7 +933,7 @@ void deadCalib() {
         u8g2.clearBuffer();
         u8g2.drawStr((128 - u8g2.getStrWidth("Calibrating..."))/2, 28, "Calibrating...");
         u8g2.drawStr((128 - u8g2.getStrWidth("Please dont touch!"))/2, 40, "Please dont touch!");
-        String tmp = "<<<" + String(5 - i) + "s>>>";
+        String tmp = "<<< " + String(5 - i) + "s >>>";
         u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 60, tmp.c_str());
         u8g2.sendBuffer();
         delay(1000);
@@ -940,7 +969,7 @@ void deadCalib() {
           if (adcVal < aMin) aMin = adcVal;
           delay(1);
         }
-        deadZone[sw] = aMax - aMin;
+        deadZone[sw] = aMax - aMin + 2;
       }
       int avrgMin = (calMin[0] + calMin[1] + calMin[2]) / 3;
       int avrgMax = (calMax[0] + calMax[1] + calMax[2]) / 3;
@@ -967,9 +996,13 @@ void deadCalib() {
           );
         }
       }
+      String dzs = "Dead Zone: ";
+      for (int i = 0; i < 3; i++) {
+        dzs += String(deadZone[i]) + (i < 2 ? "-" : "");
+      }
       u8g2.userInterfaceMessage(
         "Calibration done!",
-        ("Dead Zone: " + String(avrgDZ)).c_str(),
+        dzs.c_str(),
         "",
         " Ok "
       );
@@ -986,12 +1019,6 @@ void deadCalib() {
       }
     }
   }
-  u8g2.userInterfaceMessage(
-    "Remember to",
-    "go to calibration",
-    "menu to recalibrate",
-    " Ok "
-  );
 }
 
 void waitAction(bool state) {
@@ -1145,7 +1172,7 @@ void fomartFS() {
   File file = root.openNextFile();
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_gulim11_t_korean1);
-  u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Disk..."))/2, 28, "Clearing Disk...");
+  u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Flash..."))/2, 28, "Clearing Flash...");
   u8g2.sendBuffer();
   LittleFS.end();
 
@@ -1324,7 +1351,7 @@ void about() {
   l.show();
 }
 
-void wifiConnectScreen() { // separate function to save flash
+void wifiConnectScreen() {
   unsigned long beginTime = millis();
   while (millis() - beginTime < 60000 && WiFi.status() != WL_CONNECTED) {
     int btnPress = getButton();
@@ -1483,7 +1510,7 @@ void layoutChangeMenu() {
   int layChange = 1;
   while (layChange != 0) {
     String layoutName[] = {
-      "Standart",
+      "Standard",
       "WASD",
       "Arrows",
       "Shortcuts",
@@ -1524,31 +1551,30 @@ void layoutChangeMenu() {
 }
 
 void connectMenu() {
-  const char items[] =
+  String items =
     "USB HID\n"
     "Bluetooth\n"
-    "WiFi Settings";
-    // "Keyboard Layout";
+    "WiFi Settings\n"
+    "Mode: ";
+  switch (usbMode) {
+  case 0: items += "Keyboard"; break;
+  case 1: items += "Gamepad"; break;
+  case 2: items += "Mouse"; break;
+  default: break;
+  }
   int sel = 1;
   int vpidChange = vpidSet;
   while (sel != 0) {
-    sel = noidMenu("Connection", sel, items);
+    sel = noidMenu("Connection", sel, items.c_str());
     if (sel == 1) {
       int subSel = 1;
       while (subSel != 0) {
         String usbItems =
           "Status: " + String(tud_ready() ? "[OK]" : "[Offline]") + "\n"
           "Always Report: " + String(alwaysReport ? "[On]" : "[Off]") + "\n"
-          "Polling Rate: " + String(1000000 / LOOP_INTERVAL_US) + " Hz\n"
-          "Mode: ";
-        switch (usbMode) {
-        case 0: usbItems += "Keyboard"; break;
-        case 1: usbItems += "Gamepad"; break;
-        case 2: usbItems += "Mouse"; break;
-        default: break;
-        }
+          "Polling Rate: " + String(1000000 / LOOP_INTERVAL_US) + " Hz";
         if (usbMode == 1) {
-          usbItems += "\nVID PID Set: ";
+          usbItems += "VID PID Set: ";
           switch (vpidChange) {
             case 0: usbItems += "PS4"; break;
             case 1: usbItems += "Xbox"; break;
@@ -1573,7 +1599,7 @@ void connectMenu() {
             "1000 Hz\n"
             "2000 Hz\n"
             "4000 Hz [!]\n"
-            "8000 Hz [!]";
+            "Unlimited [!]";
           int pollSel = noidMenu("Polling Rate", 1, pollingList);
           switch (pollSel) {
             case 1: LOOP_INTERVAL_US = 8000; break;
@@ -1594,7 +1620,7 @@ void connectMenu() {
             case 7: {
               int confirm = u8g2.userInterfaceMessage(
                 "Warning!",
-                "8000Hz is unstable",
+                "Feature unstable",
                 "Continue?",
                 " Yes \n No "
               );
@@ -1604,24 +1630,16 @@ void connectMenu() {
             default: break;
           }
         }
-        if (subSel == 4) {
-          int cMode = usbMode;
-          const char mMenu[] = 
-          "Keyboard\n"
-          "Gamepad\n"
-          "Mouse";
-          cMode = noidMenu("USB Mode", cMode + 1, mMenu) - 1;
-          if (cMode != usbMode) {
-            int wopt = u8g2.userInterfaceMessage("Noicte", "USB Mode apply", "after restart", " Cancel \n Ok \n Restart");
-            switch (wopt) {
-              case 1: break;
-              case 2: usbMode = cMode; sysSave(); break;
-              case 3: usbMode = cMode; sysSave(); forceReset();
-              default: break;
-            }
-          }
+        if (subSel == 4) vpidChange = (vpidChange + 1) % 4;
+      }
+      if (vpidChange != vpidSet) {
+        int wopt = u8g2.userInterfaceMessage("Noicte", "VID PID apply", "after restart", " Cancel \n Ok \n Restart");
+        switch (wopt) {
+          case 1: break;
+          case 2: vpidSet = vpidChange; sysSave(); break;
+          case 3: vpidSet = vpidChange; sysSave(); forceReset();
+          default: break;
         }
-        if (subSel == 5) vpidChange = (vpidChange + 1) % 4;
       }
     }
     if (sel == 2) {
@@ -1664,17 +1682,22 @@ void connectMenu() {
     if (sel == 3) {
       wifiMenu();
     }
-    // else if (sel == 4) {
-    //   layoutChangeMenu();
-    // }
-  }
-  if (vpidChange != vpidSet) {
-    int wopt = u8g2.userInterfaceMessage("Noicte", "VID PID apply", "after restart", " Cancel \n Ok \n Restart");
-    switch (wopt) {
-      case 1: break;
-      case 2: vpidSet = vpidChange; sysSave(); break;
-      case 3: vpidSet = vpidChange; sysSave(); forceReset();
-      default: break;
+    else if (sel == 4) {
+      int cMode = usbMode;
+      const char mMenu[] = 
+      "Keyboard\n"
+      "Gamepad\n"
+      "Mouse";
+      cMode = noidMenu("USB Mode", cMode + 1, mMenu) - 1;
+      if (cMode > -1 && cMode != usbMode) {
+        int wopt = u8g2.userInterfaceMessage("Noicte", "USB Mode apply", "after restart", " Cancel \n Ok \n Restart");
+        switch (wopt) {
+          case 1: break;
+          case 2: usbMode = cMode; sysSave(); break;
+          case 3: usbMode = cMode; sysSave(); forceReset();
+          default: break;
+        }
+      }
     }
   }
 }
