@@ -2,6 +2,7 @@
 #include "global.h"
 #include "input.h"
 
+/*
 void mgp();
 
 extern NimBLECharacteristic *inputReport;
@@ -18,9 +19,9 @@ class ServerCallbacks : public NimBLEServerCallbacks {
 };
 
 void marm();
+void mwk();
+*/
 
 int randRange(int min, int max);
 
 uint8_t charToKey(char c, bool &shift);
-
-void mwk();

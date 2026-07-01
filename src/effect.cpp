@@ -1,4 +1,5 @@
 #include "effect.h"
+#include "profile.h"
 
 Wave waves[MAX_WAVES];
 LedFade singleFade[3];
@@ -88,19 +89,19 @@ void updateRipple() {
 }
 
 void underGlowUpdate() {
-  if (!underGlow) return;
+  if (!prf.underGlow) return;
   if (analogLed) for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
   else {
-    for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((color[0] * ledOutput[i] * 255) / (255 * maxBri), (color[1] * ledOutput[i] * 255) / (255 * maxBri), (color[2] * ledOutput[i] * 255) / (255 * maxBri)));
+    for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((prf.color[0] * ledOutput[i] * 255) / (255 * maxBri), (prf.color[1] * ledOutput[i] * 255) / (255 * maxBri), (prf.color[2] * ledOutput[i] * 255) / (255 * maxBri)));
     b.show();
   }
 }
 
 void setUnderGlowPixel(int idx, uint8_t red, uint8_t green, uint8_t blue, uint8_t bri) {
   if (analogLed) {
-    if (idx < 3) ledOutput[idx] = (color[idx] * bri * rgbBri) / (255 * maxBri);
+    if (idx < 3) ledOutput[idx] = (prf.color[idx] * bri * prf.rgbBri) / (255 * maxBri);
   } else {
-    if (idx < 3) b.setPixelColor(idx, b.Color((color[0] * bri * rgbBri) / (255 * maxBri), (color[1] * bri * rgbBri) / (255 * maxBri), (color[2] * bri * rgbBri) / (255 * maxBri)));
+    if (idx < 3) b.setPixelColor(idx, b.Color((prf.color[0] * bri * prf.rgbBri) / (255 * maxBri), (prf.color[1] * bri * prf.rgbBri) / (255 * maxBri), (prf.color[2] * bri * prf.rgbBri) / (255 * maxBri)));
     b.show();
   }
 }

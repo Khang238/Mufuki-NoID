@@ -1,4 +1,5 @@
 #include "global.h"
+#include "profile.h"
 
 const String ver = "v2.6.5";
 bool firstTime = false;
@@ -19,9 +20,9 @@ HIDgamepad gdev;
 HIDmouse mdev;
 CDCusb CDCUSBSerial;
 
-BleGamepad* gblue;
-BleKeyboard* kblue;
-BleMouse* mlue;
+// BleGamepad* gblue;
+// BleKeyboard* kblue;
+// BleMouse* mlue;
 
 MPU6050 mpu(Wire);
 U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
@@ -30,28 +31,28 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 );
 
 // Analog
-int deadZone[3] = {32, 32, 32};
-float calMax[3] = {2600, 2700, 2800};
-float calMin[3] = {2200, 2300, 2300};
+// int deadZone[3] = {32, 32, 32};
+// float calMax[3] = {2600, 2700, 2800};
+// float calMin[3] = {2200, 2300, 2300};
 float  hallVal[3] = { 0.00,  0.00,  0.00};
 int rawVal[3] = {0, 0, 0};
-bool doFilter = false;
-int filterType = 0;
-int ovsSamples = 16;
-float emaAlpha = 0.05;
-bool hallDisplayAsKT= true;
-float keyTravel = 4.5;
+// bool doFilter = false;
+// int filterType = 0;
+// int ovsSamples = 16;
+// float emaAlpha = 0.05;
 
 // Buttons
 bool  nowPress[6] = {false};
 bool lastPress[6] = {false};
-uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
+// uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
+// bool hallDisplayAsKT= true;
+// float keyTravel = 4.5;
 
-int inputHandler = 0; // 0: Digital emulation, 1: Hysteresis handling, 2: Dynamic actuation
-float actuation = 0.3; // For digital emulation
-float upperThreshold = 0.6; // For hysteresis handling
-float lowerThreshold = 0.4; // For hysteresis handling
-float windowSize = 0.3; // For dynamic actuation
+// int inputHandler = 0; // 0: Digital emulation, 1: Hysteresis handling, 2: Dynamic actuation
+// float actuation = 0.3; // For digital emulation
+// float upperThreshold = 0.6; // For hysteresis handling
+// float lowerThreshold = 0.4; // For hysteresis handling
+// float windowSize = 0.3; // For dynamic actuation
 float windowFoot[3] = {0.00, 0.00, 0.00}; // For dynamic actuation
 
 unsigned long pressTime[4] = {0};
@@ -62,29 +63,29 @@ bool needReport = false;
 
 // Screen
 unsigned long waitIDLE = 0;
-unsigned long screenSaveDuration = 5000;
-unsigned long screenOffDuration  = 5000;
 bool screenWait = false;
 bool screenOff  = false;
-uint8_t screenBri = 1;
-int logoType = 0;
-String screenLogo = "Mufuki";
+// unsigned long screenSaveDuration = 5000;
+// unsigned long screenOffDuration  = 5000;
+// uint8_t screenBri = 1;
+// int logoType = 0;
+// String screenLogo = "Mufuki";
 
 int maxBri = 16;
 uint32_t lastDecTime = 0;
 uint8_t mode = 0;
 uint8_t ledOutput[3] = { 0,0,0 };
 
-bool underGlow = false;
-int glowType = 0; // 0: Tap, 1: Ripple, 2: Smooth, 3: Burn-in, 4: Soild
+// bool underGlow = false;
 bool applyEffect[3] = {false, false, false};
-bool rgb = false;
-uint8_t rgbBri = 255;
-uint8_t color[] = {255, 255, 255};
-uint8_t rainbowStep = 1;
-bool doRainbow = false;
+// int glowType = 0; // 0: Tap, 1: Ripple, 2: Smooth, 3: Burn-in, 4: Soild
+// bool rgb = false;
+// uint8_t rgbBri = 255;
+// uint8_t color[] = {255, 255, 255};
+// uint8_t rainbowStep = 1;
+// bool doRainbow = false;
+// uint8_t rgbInterval = 10; // in n x 10ms
 int updateInterval = 32;
-uint8_t rgbInterval = 10; // in n x 10ms
 unsigned long lastRGBUpdate = 0;
 unsigned long lastUpdate = 0;
 
@@ -100,21 +101,25 @@ int rate = 0;
 int lastRate = 0;
 unsigned long lastRateCheckUpdate = 0;
 
+void globFont() {
+  u8g2.setFont(u8g2_font_gulim_11_idk);
+}
+
 void screenSaver(const char* title) {
   u8g2.clearBuffer();
-  if (logoType > 1 && logoType < 12) {
-    u8g2.drawXBMP(20, 20, 88, 232, logoKao[logoType - 2]);
+  if (prf.logoType > 1 && prf.logoType < 12) {
+    u8g2.drawXBMP(20, 20, 88, 232, logoKao[prf.logoType - 2]);
     u8g2.setDrawColor(0);
     u8g2.drawBox(20, 0, 88, 20);
     u8g2.drawBox(20, 40, 88, 24);
     u8g2.setDrawColor(1);
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
   }
   else {
     u8g2.setFont(u8g2_font_spleen16x32_mr);
-    u8g2.drawStr((128 - u8g2.getStrWidth(screenLogo.c_str()))/2, 40, screenLogo.c_str());
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    u8g2.drawStr((128 - u8g2.getStrWidth(prf.screenLogo))/2, 40, prf.screenLogo);
+    globFont();
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 54, title);
   }
   u8g2.sendBuffer();

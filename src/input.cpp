@@ -16,13 +16,13 @@ int expoMovAvr(int chan, float alpha) {
 }
 
 void readHall(int i) {
-  if (doFilter) {
-    if (filterType == 0) rawVal[i] = overSample(i, ovsSamples);
-    else rawVal[i] = expoMovAvr(i, emaAlpha);
+  if (prf.doFilter) {
+    if (prf.filterType == 0) rawVal[i] = overSample(i, prf.ovsSamples);
+    else rawVal[i] = expoMovAvr(i, prf.emaAlpha);
   } else rawVal[i] = analogRead(adcPins[i]);
   hallVal[i] = constrain(
-    (float)(rawVal[i] - calMin[i] - deadZone[i]) /
-    (float)(calMax[i] - calMin[i] - 2 * deadZone[i]),
+    (float)(rawVal[i] - prf.calMin[i] - prf.deadZone[i]) /
+    (float)(prf.calMax[i] - prf.calMin[i] - 2 * prf.deadZone[i]),
     0.00, 1.00
   );
 }
@@ -31,7 +31,7 @@ void inputTypeDigitalEmulation() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
       readHall(i);
-      nowPress[i] = (hallVal[i] > actuation);
+      nowPress[i] = (hallVal[i] > prf.actuation);
       if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
         applyEffect[i] = true;
       }
@@ -47,9 +47,9 @@ void inputTypeHysteresisHandling() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
       readHall(i);
-      if (hallVal[i] > upperThreshold)
+      if (hallVal[i] > prf.upperThreshold)
         nowPress[i] = true;
-      else if (hallVal[i] < lowerThreshold)
+      else if (hallVal[i] < prf.lowerThreshold)
         nowPress[i] = false;
       if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
         applyEffect[i] = true;
@@ -66,16 +66,16 @@ void inputTypeDynamicActuation() {
   for (int i = 0; i < 6; i++) {
     if (i < 3) {
       readHall(i);
-      if (hallVal[i] > windowFoot[i] + windowSize) {
+      if (hallVal[i] > windowFoot[i] + prf.windowSize) {
         nowPress[i] = true;
-        windowFoot[i] = hallVal[i] - windowSize;
+        windowFoot[i] = hallVal[i] - prf.windowSize;
       }
       else if (hallVal[i] < windowFoot[i]) {
         nowPress[i] = false;
         windowFoot[i] = hallVal[i];
       }
       if (hallVal[i] == 0.0) windowFoot[i] = 0.0;
-      if (hallVal[i] == 1.0) windowFoot[i] = 1.0 - windowSize;
+      if (hallVal[i] == 1.0) windowFoot[i] = 1.0 - prf.windowSize;
       if ((nowPress[i] != lastPress[i]) && nowPress[i]) {
         applyEffect[i] = true;
       }
@@ -88,7 +88,7 @@ void inputTypeDynamicActuation() {
 }
 
 void updateInput() {
-  switch (inputHandler) {
+  switch (prf.inputHandler) {
     case 0: inputTypeDigitalEmulation(); break;
     case 1: inputTypeHysteresisHandling(); break;
     case 2: inputTypeDynamicActuation(); break;
@@ -290,7 +290,7 @@ String keyboard(String text) {
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_fub20_tf);
       u8g2.drawStr(64 - u8g2.getStrWidth(currentCode.c_str()) / 2, 20, currentCode.c_str());
-      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+      globFont();
       char tmp = decodeMorse(currentCode.c_str());
       String tmpStr = unsignedCharacter ? "[???]" : String(tmp);
       if (currentCode == "..--") tmpStr = "[space]";
@@ -322,17 +322,18 @@ void keypadMUI() {
   tmp = withBLE ? "BLE Key" : "Keypad" ;
   u8g2.drawStr(32 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
-  switch (inputHandler) {
+  switch (prf.inputHandler) {
     case 0: tmp = "DEM" ; break;
     case 1: tmp = "HSR"  ; break;
     case 2: tmp = "DAC"  ; break;
   }
   u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
-  if (inputHandler == 1) tmp = "Act: +" + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1), 2) + " -" + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1), 2);
-  else                   tmp = "Act: " + String(inputHandler == 0 ? actuation * (hallDisplayAsKT ? keyTravel : 1) : windowSize * (hallDisplayAsKT ? keyTravel : 1)) +  (hallDisplayAsKT ? "mm" : "");
-  if (withBLE && !kblue->isConnected()) u8g2.drawStr(64 - u8g2.getStrWidth("Not Connected") / 2, 48, "Not Connected");
-  else u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
+  if (prf.inputHandler == 1) tmp = "Act: +" + String(prf.upperThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2) + " -" + String(prf.lowerThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2);
+  else                   tmp = "Act: " + String(prf.inputHandler == 0 ? prf.actuation * (prf.hallDisplayAsKT ? prf.keyTravel : 1) : prf.windowSize * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2) +  (prf.hallDisplayAsKT ? "mm" : "");
+  // if (withBLE && !kblue->isConnected()) u8g2.drawStr(64 - u8g2.getStrWidth("Not Connected") / 2, 48, "Not Connected");
+  // else u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
+  u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
 
   //float maxPress = 0.00;
   u8g2.setFont(u8g2_font_5x8_tr);
@@ -341,7 +342,7 @@ void keypadMUI() {
     u8g2.drawFrame(43 * i - 1, 55, 44, 10);
     u8g2.drawBox(43 * i, 55, (int)(hallVal[i] * 43), 10);
     u8g2.setDrawColor(2);
-    String line = hallDisplayAsKT ? (String(hallVal[i] * keyTravel, 1) + "mm") : String(hallVal[i], 2);
+    String line = prf.hallDisplayAsKT ? (String(hallVal[i] * prf.keyTravel, 1) + "mm") : String(hallVal[i], 2);
     u8g2.drawStr(1 + 43 * i, 63, line.c_str());
     u8g2.setDrawColor(1);
     //maxPress = max(maxPress, hallVal[i]);
@@ -358,7 +359,7 @@ void handleKeypad() {
     uint8_t keycodes[6] = {0};
     uint8_t idx = 0;
     for (int i = 0; i < 6; i++)
-      if (nowPress[i]) keycodes[idx++] = layout[i];
+      if (nowPress[i]) keycodes[idx++] = prf.layout[i];
     tud_hid_keyboard_report(dev.report_id, 0, keycodes);
   }
 }
@@ -369,7 +370,7 @@ void mouseMUI() {
   u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
   u8g2.drawStr(0, 18, withBLE ? "Mode: BLE Mouse" : "Mode: Mouse");
   u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
-  if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
+  // if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
   u8g2.drawFrame(4, 30, 32, 32); // mouse direction
   int centerX = 20, centerY = 46;
   int cursorX = centerX + (int)(mos.mouseX * 16 / 127);
@@ -398,7 +399,7 @@ void gamepadMUI() {
   u8g2.drawStr(0, 10, ("CPU Temp: " + String((int)temperatureRead()) + String((char)0xB0) + "C").c_str());
   u8g2.drawStr(0, 18, withBLE ? "Mode: BLE Gamepad" : "Mode: Gamepad");
   u8g2.drawStr(0, 26, ("update rate: " + String(lastRate) + "r/s").c_str());
-  if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
+  // if (withBLE && !kblue->isConnected()) u8g2.drawStr(0, 34, "Not Connected");
   u8g2.drawFrame(4, 30, 24, 24); // left stick
   int centerX = 16, centerY = 42;
   int cursorX = centerX + (int)(mos.axes[0] * 12 / 127);

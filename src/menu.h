@@ -21,11 +21,15 @@ int countItems(const char* items);
 
 bool getItem(const char* items, int index, char* out, size_t outSize);
 
-int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph = false, const char* glyph = "");
+int noidMenu(const char* title, int startIndex, const char* list);
 
 void calibMenu();
 
 void inputMenu();
+
+void changeFiltSet();
+
+void testFilt();
 
 void filtMenu();
 

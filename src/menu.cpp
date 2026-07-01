@@ -31,6 +31,8 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
   #define SMTH_WAIT 150
   #define SMTH_FACC 1500
   #define SMTH_FAHH 5000
+  #define FTNDZ 0.4
+
   unsigned long htA = 0, htB = 0, adw = 0;
   bool hlA = false, hlB = false;
   float sVal = input;
@@ -54,20 +56,24 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
         input -= (millis() - htB < SMTH_FAHH ? 0.01 : 0.81);
       }
     }
-    input += hallVal[2] - hallVal[0]; // fine-tune with hall input
+    float diff = hallVal[2] - hallVal[0];
+    if (fabs(diff) < FTNDZ) diff = 0;
+    else if (diff > 0) diff -= FTNDZ;
+    else diff += FTNDZ;
+    input += diff; // fine-tune with hall input
     if (nowPress[1]) input = round(input); // snap to integer
     if (clamp) input = constrain(input, clampMin, clampMax);
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     if (!digitalRead(btnPins[1])) {while (!digitalRead(btnPins[1])) delay(10); return input;}
     if (!digitalRead(btnPins[3])) {while (!digitalRead(btnPins[3])) delay(10); return sVal;}
 
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 12, title);
     String tmp = String(input, 2);
-    bool toNeg = hallVal[0] > hallVal[2];
-    int smth = (int)((hallVal[2] - hallVal[0]) * 40);
+    bool toNeg = diff < 0;
+    int smth = (int)((diff) * 40);
     if (fabs(hallVal[2] - hallVal[0]) > 0.0) {
-      u8g2.drawStr(64 + (int)((hallVal[2] - hallVal[0]) * 46) - 3, 52, toNeg ? "-" : "+");
+      u8g2.drawStr(64 + (int)(diff * 46) - 3, 52, toNeg ? "-" : "+");
       if (toNeg) u8g2.drawBox(64 + smth, 44, abs(smth), 8); 
       else       u8g2.drawBox(64, 44, abs(smth), 8);
     }
@@ -120,7 +126,9 @@ char globalTitle[32] = "NoID_Mufuki";
 float globalTitleFloat[32] = {0};
 bool isTitleInitialized = false;
 
-int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph, const char* glyph) {
+int noidMenu(const char* title, int startIndex, const char* list) {
+  #define COLLAPSE_SPACE 6
+
   while (getButton(true) != -1) {delay(10);}
   if (startIndex > 0) startIndex--;
   int selected = startIndex;
@@ -226,10 +234,7 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
       if (itemY + boxH >= titleH && itemY <= 64) {
         char buf[32];
         getItem(list, i, buf, sizeof(buf));
-        if (drawGlyph && i == selected && glyph != nullptr) {
-          u8g2.drawStr(2, itemY + fontH - 1, glyph);
-          u8g2.drawStr(2 + u8g2.getStrWidth(glyph) + 2, itemY + fontH + 1, buf);
-        } else if (i == selected) {
+        if (i == selected) {
           u8g2.drawStr(4 + lift, itemY + fontH - 1, buf);
         } else {
           u8g2.drawStr(4, itemY + fontH - 1, buf);
@@ -269,103 +274,180 @@ int noidMenu(const char* title, int startIndex, const char* list, bool drawGlyph
 void calibMenu() {
   bool running = true;
   bool calib = false;
+  bool calibed = false; 
   int nowCal = 0;
-  if (analogLed) ledcWrite(0, 2);
-  else {b.setPixelColor(0, b.Color(255, 255, 255)); b.show();}
+  int calLast1s = 0;
+  unsigned long idk = 0;
+  int calStep = 0; 
+
+  if (analogLed) {
+    ledcWrite(0, 2); ledcWrite(1, 0); ledcWrite(2, 0);
+  } else {
+    b.clear();
+    b.setPixelColor(0, b.Color(255, 255, 255));
+    b.show();
+  }
+  
   for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
+
   while (running) {
     if (firstTime) updateInput();
     if (calib) {
-      calMin[nowCal] = (calMin[nowCal] < rawVal[nowCal]) ? calMin[nowCal] : rawVal[nowCal];
-      calMax[nowCal] = (calMax[nowCal] > rawVal[nowCal]) ? calMax[nowCal] : rawVal[nowCal];
+      if (calStep == 0) {
+        prf.calMin[nowCal] = (prf.calMin[nowCal] < rawVal[nowCal]) ? prf.calMin[nowCal] : rawVal[nowCal];
+      } else if (calStep == 1) {
+        prf.calMax[nowCal] = (prf.calMax[nowCal] > rawVal[nowCal]) ? prf.calMax[nowCal] : rawVal[nowCal];
+      }
     }
-    switch (getButton())
-    {
+
+    switch (getButton()) {
     case 0:
       nowCal = (nowCal + 2) % 3;
-      for (int i = 0;  i < GRAPH_WIDTH; i++)
-        graphData[i] = {0};
+      for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
+      idk = millis();
+      calLast1s = rawVal[nowCal];
+      calibed = false; 
+      calStep = 0;
+
       for (int i = 0; i < 3; i++) {
-        if (i == nowCal)
+        if (i == nowCal) {
           if (analogLed) ledcWrite(i, 2);
-          else b.setPixelColor(i, b.Color(255, 255, 255));
-        else
+          else b.setPixelColor(i, calib ? b.Color(255, 255, 0) : b.Color(255, 255, 255));
+        } else {
           if (analogLed) ledcWrite(i, 0);
           else b.setPixelColor(i, b.Color(0, 0, 0));
+        }
       }
-      if (calib) {
-        calMin[nowCal] = 4095;
-        calMax[nowCal] = 0;
-      }
+      if (calib) { prf.calMin[nowCal] = 4095; prf.calMax[nowCal] = 0; }
       break;
+
     case 1:
       calib = !calib;
+      idk = millis();
+      calLast1s = rawVal[nowCal];
+      calibed = false;
+      calStep = 0;
+
       if (calib) {
-        calMin[nowCal] = 4095;
-        calMax[nowCal] = 0;
+        prf.calMin[nowCal] = 4095;
+        prf.calMax[nowCal] = 0;
+        if (analogLed) ledcWrite(nowCal, 2);
+        else b.setPixelColor(nowCal, b.Color(255, 255, 0));
+      } else {
+        if (analogLed) ledcWrite(nowCal, 2);
+        else b.setPixelColor(nowCal, b.Color(255, 255, 255));
       }
       break;
+
     case 2:
       nowCal = (nowCal + 1) % 3;
-      for (int i = 0;  i < GRAPH_WIDTH; i++)
-        graphData[i] = {0};
+      for (int i = 0;  i < GRAPH_WIDTH; i++) graphData[i] = {0};
+      
+      idk = millis();
+      calLast1s = rawVal[nowCal];
+      calibed = false;
+      calStep = 0;
+
       for (int i = 0; i < 3; i++) {
-        if (i == nowCal)
+        if (i == nowCal) {
           if (analogLed) ledcWrite(i, 2);
-          else b.setPixelColor(i, b.Color(255, 255, 255));
-        else
+          else b.setPixelColor(i, calib ? b.Color(255, 255, 0) : b.Color(255, 255, 255));
+        } else {
           if (analogLed) ledcWrite(i, 0);
           else b.setPixelColor(i, b.Color(0, 0, 0));
+        }
       }
-      if (calib) {
-        calMin[nowCal] = 4095;
-        calMax[nowCal] = 0;
-      }
+      if (calib) { prf.calMin[nowCal] = 4095; prf.calMax[nowCal] = 0; }
       break;
+
     case 3:
       running = false;
+      break;
     default:
       break;
     }
+
+    if (calib && calStep < 2) {
+      if (millis() - idk > 1000) {
+        if (abs(rawVal[nowCal] - calLast1s) <= prf.deadZone[nowCal] * 2) {
+          if (calStep == 0 && !calibed) {
+            calibed = true;
+            if (analogLed) ledcWrite(nowCal, 4);
+            else b.setPixelColor(nowCal, b.Color(0, 255, 0));
+            calStep = 1;
+            calibed = false;
+            prf.calMax[nowCal] = 0; 
+            if (analogLed) ledcWrite(nowCal, 2);
+            else b.setPixelColor(nowCal, b.Color(255, 255, 0));
+          } 
+          else if (calStep == 1 && !calibed) {
+            if (prf.calMax[nowCal] - prf.calMin[nowCal] >= 100) {
+              calibed = true;
+              calStep = 2;
+              if (analogLed) ledcWrite(nowCal, 4);
+              else b.setPixelColor(nowCal, b.Color(0, 255, 0));
+            } else {
+              calibed = false;
+              if (analogLed) ledcWrite(nowCal, 2);
+              else b.setPixelColor(nowCal, b.Color(255, 255, 0));
+            }
+          }
+        } else {
+          if (calibed) {
+            calibed = false;
+            if (analogLed) ledcWrite(nowCal, 2);
+            else b.setPixelColor(nowCal, b.Color(255, 255, 0));
+          }
+        }
+        idk = millis();
+        calLast1s = rawVal[nowCal];
+      }
+    }
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     u8g2.drawStr(0, 12, ((calib ? "Calibrating S" : "Viewing S") + String(nowCal + 1)).c_str());
-    u8g2.drawStr(0, 24, ("+ " + String((int)calMax[nowCal])).c_str());
+    u8g2.drawStr(0, 24, ("+ " + String((int)prf.calMax[nowCal])).c_str());
     u8g2.drawStr(0, 35, ("p " + String((int)rawVal[nowCal])).c_str());
-    u8g2.drawStr(0, 46, ("- " + String((int)calMin[nowCal])).c_str());
+    u8g2.drawStr(0, 46, ("- " + String((int)prf.calMin[nowCal])).c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
-    u8g2.drawStr(108, 12, String(hallVal[nowCal]).c_str());
+    if (calib) {
+      if (calStep == 0)      u8g2.drawStr( 93, 12, "RELEASE");
+      else if (calStep == 1) u8g2.drawStr(103, 12, "PRESS");
+      else if (calStep == 2) u8g2.drawStr(108, 12, "DONE");
+    } else {
+      u8g2.drawStr(108, 12, String(hallVal[nowCal]).c_str());
+    }
+
     u8g2.drawStr(0, 56, "F1: Last"); u8g2.drawStr(50, 56, calib ? "F2: Stop Calib" : "F2: Calibrate");
     u8g2.drawStr(0, 64, "F3: Next"); u8g2.drawStr(50, 64, "F4: Exit");
+    
     pushGraphValue(hallVal[nowCal]);
     drawGraph(40, 14);
     if (calib)
       u8g2.drawLine(40, (int)((1.0 - hallVal[nowCal]) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - hallVal[nowCal]) * (GRAPH_HEIGHT - 1)) + 14);
     else
-      switch (inputHandler) {
-        case 0: u8g2.drawLine(40, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14); break;
+      switch (prf.inputHandler) {
+        case 0: u8g2.drawLine(40, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14); break;
         case 1:
-          u8g2.drawLine(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
-          u8g2.drawLine(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
           break;
         case 2:
           u8g2.drawLine(40, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14);
-          u8g2.drawLine(40, (int)((1.0 - (windowFoot[nowCal] + windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (windowFoot[nowCal] + windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - (windowFoot[nowCal] + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (windowFoot[nowCal] + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
           break;
         default: break;
       }
     u8g2.sendBuffer();
+    
     if (!analogLed) b.show();
   }
+
   for (int i = 0; i < 3; i++) {
     if (analogLed) ledcWrite(i, 0);
     else b.setPixelColor(i, b.Color(0, 0, 0));
   }
   if (!analogLed) b.show();
-  //for (int i = 0; i < 3; i++) {
-  //  calMin[i] = calMin[i] + deadZone;
-  //  calMax[i] = calMax[i] - deadZone;
-  //}
 }
 
 void inputMenu() {
@@ -382,36 +464,36 @@ void inputMenu() {
     float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
     pushGraphValue(maxPress);
     drawGraph(40, 14);
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    switch (inputHandler) {
+    globFont();
+    switch (prf.inputHandler) {
       case 0:
       inputTypeDigitalEmulation();
         u8g2.drawStr(0, 12, "DigitalEmulation");
         u8g2.drawStr(0, 24, "Acc:");
-        u8g2.drawStr(0, 36, (hallDisplayAsKT ? String(actuation * keyTravel, 2) + "mm" : String(actuation)).c_str());
-        u8g2.drawLine(40, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14);
+        u8g2.drawStr(0, 36, (prf.hallDisplayAsKT ? String(prf.actuation * prf.keyTravel, 2) + "mm" : String(prf.actuation)).c_str());
+        u8g2.drawLine(40, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14);
         break;
       case 1:
         inputTypeHysteresisHandling();
         u8g2.drawStr(0, 12, "Hysteresis");
-        u8g2.drawStr(0, 24, ("U: " + String(upperThreshold * (hallDisplayAsKT ? keyTravel : 1))).c_str());
-        u8g2.drawStr(0, 36, ("L: " + String(lowerThreshold * (hallDisplayAsKT ? keyTravel : 1))).c_str());
-        if (hallDisplayAsKT) u8g2.drawStr(0, 48, "mm");
-        u8g2.drawLine(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
-        u8g2.drawLine(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+        u8g2.drawStr(0, 24, ("U: " + String(prf.upperThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
+        u8g2.drawStr(0, 36, ("L: " + String(prf.lowerThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
+        if (prf.hallDisplayAsKT) u8g2.drawStr(0, 48, "mm");
+        u8g2.drawLine(40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+        u8g2.drawLine(40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         if (hysteresisChange == 0) {
-          u8g2.drawTriangle(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 10, 40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 18, 46, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawTriangle(40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 10, 40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 18, 46, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         } else {
-          u8g2.drawTriangle(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 10, 40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 18, 46, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawTriangle(40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 10, 40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 18, 46, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         }
         break;
       case 2:
         inputTypeDynamicActuation();
         u8g2.drawStr(0, 12, "DynamicAct");
-        u8g2.drawStr(0, 24, ("W: " + String(windowSize * (hallDisplayAsKT ? keyTravel : 1))).c_str());
-        if (hallDisplayAsKT) u8g2.drawStr(0, 36, "mm");
+        u8g2.drawStr(0, 24, ("W: " + String(prf.windowSize * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
+        if (prf.hallDisplayAsKT) u8g2.drawStr(0, 36, "mm");
         u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128  , (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
-        u8g2.drawLine(40, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
+        u8g2.drawLine(40, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
         break;
       default:
         inputTypeDigitalEmulation();
@@ -419,7 +501,7 @@ void inputMenu() {
     }
     u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxPress).c_str());
-    switch (inputHandler) {
+    switch (prf.inputHandler) {
       case 0:
         u8g2.drawStr(0, 56, "F1: Acc+    F2: Change M"); // not enough space
         u8g2.drawStr(0, 64, "F3: Acc-    F4: Exit");
@@ -445,51 +527,51 @@ void inputMenu() {
     }
     switch (getButton()) {
       case 0:
-        if (inputHandler == 0) {
-          actuation += 0.05;
-          actuation = constrain(actuation, 0.05, 0.95);
-        } else if (inputHandler == 1) {
+        if (prf.inputHandler == 0) {
+          prf.actuation += 0.05;
+          prf.actuation = constrain(prf.actuation, 0.05, 0.95);
+        } else if (prf.inputHandler == 1) {
           if (!hysteresisChanging) {
             hysteresisChange = (hysteresisChange + 1) % 2;
           }
           else if (hysteresisChange == 0) {
-            upperThreshold += 0.05;
-            upperThreshold = constrain(upperThreshold, lowerThreshold + 0.05, 0.95);
+            prf.upperThreshold += 0.05;
+            prf.upperThreshold = constrain(prf.upperThreshold, prf.lowerThreshold + 0.05, 0.95);
           }
           else if (hysteresisChange == 1) {
-            lowerThreshold += 0.05;
-            lowerThreshold = constrain(lowerThreshold, 0.05, upperThreshold - 0.05);
+            prf.lowerThreshold += 0.05;
+            prf.lowerThreshold = constrain(prf.lowerThreshold, 0.05, prf.upperThreshold - 0.05);
           }
-        } else if (inputHandler == 2) {
-          windowSize += 0.05;
-          windowSize = constrain(windowSize, 0.05, 1.00);
+        } else if (prf.inputHandler == 2) {
+          prf.windowSize += 0.05;
+          prf.windowSize = constrain(prf.windowSize, 0.05, 1.00);
         }
         break;
       case 1:
-        if (!(hysteresisChanging && inputHandler == 1))
-          inputHandler = (inputHandler + 1) % 3;
+        if (!(hysteresisChanging && prf.inputHandler == 1))
+          prf.inputHandler = (prf.inputHandler + 1) % 3;
         else
           hysteresisChanging = false;
         break;
       case 2:
-        if (inputHandler == 0) {
-          actuation -= 0.05;
-          actuation = constrain(actuation, 0.05, 0.95);
-        } else if (inputHandler == 1) {
+        if (prf.inputHandler == 0) {
+          prf.actuation -= 0.05;
+          prf.actuation = constrain(prf.actuation, 0.05, 0.95);
+        } else if (prf.inputHandler == 1) {
           if (!hysteresisChanging) {
             hysteresisChanging = true;
           }
           else if (hysteresisChange == 0) {
-            upperThreshold -= 0.05;
-            upperThreshold = constrain(upperThreshold, lowerThreshold + 0.05, 0.95);
+            prf.upperThreshold -= 0.05;
+            prf.upperThreshold = constrain(prf.upperThreshold, prf.lowerThreshold + 0.05, 0.95);
           }
           else if (hysteresisChange == 1) {
-            lowerThreshold -= 0.05;
-            lowerThreshold = constrain(lowerThreshold, 0.05, upperThreshold - 0.05);
+            prf.lowerThreshold -= 0.05;
+            prf.lowerThreshold = constrain(prf.lowerThreshold, 0.05, prf.upperThreshold - 0.05);
           }
-        } else if (inputHandler == 2) {
-          windowSize -= 0.05;
-          windowSize = constrain(windowSize, 0.05, 1.00);
+        } else if (prf.inputHandler == 2) {
+          prf.windowSize -= 0.05;
+          prf.windowSize = constrain(prf.windowSize, 0.05, 1.00);
         }
         break;
       case 3:
@@ -498,6 +580,133 @@ void inputMenu() {
         break;
     }
     u8g2.sendBuffer();
+  }
+}
+
+void changeFiltSet() {
+  int sel = 1;
+  while (sel > 0) {
+    String opts = 
+      "Filter: " + (String)(prf.doFilter ? "[On]" : "[Off]") + "\n" +
+      (String)(prf.filterType == 0 ? "> OVS <": "OVS") + "\n" + 
+      (String)(prf.filterType == 1 ? "> EMA <": "EMA") + "\n";
+    
+    if (prf.filterType == 0) opts += "OVS Samples: " + String(prf.ovsSamples);
+    else opts += "EMA Alpha: " + String(prf.emaAlpha, 2);
+    
+    sel = noidMenu("Filter Settings", sel, opts.c_str());
+    switch (sel) {
+      case 1: prf.doFilter = !prf.doFilter; break;    
+      case 2: prf.filterType = 0; break;
+      case 3: prf.filterType = 1; break;
+      case 4: {
+        if (prf.filterType == 0) prf.ovsSamples = (int)valueSet("Samples (OVS)", prf.ovsSamples, true, 2, 256);
+        else {
+          prf.emaAlpha = valueSet("Alpha (EMA 1%)", prf.emaAlpha*100, true, 0.01, 100) / 100;
+          prf.emaAlpha = constrain(prf.emaAlpha, 0.00001, 1);
+        }
+        break;
+      }
+      default: break;
+    }
+  }
+}
+
+void testFilt() {
+  uint32_t oldLIU = LOOP_INTERVAL_US;
+  globFont();
+
+  auto getMaxHall = []() -> float {
+    return max(max(hallVal[0], hallVal[1]), hallVal[2]);
+  };
+  float maxHall = getMaxHall();
+  if (maxHall > 0.0f) {
+    u8g2.clearBuffer();
+    u8g2.drawStr(0, 12, "Please release all");
+    u8g2.drawStr(0, 24, "Hall key!");
+    u8g2.sendBuffer();
+
+    while (getMaxHall() > 0.0f) {
+      delay(10);
+    }
+  }
+  const uint32_t testFreq[] = {1000, 500, 250, 125};
+  unsigned long rels[4] = {0};
+  float hrels = {0.00f};
+  for (int i = 0; i < 4; i++) {
+    LOOP_INTERVAL_US = testFreq[i];
+
+    u8g2.clearBuffer();
+    u8g2.drawStr(
+      0,
+      12,
+      ("Now: " + String(1000000UL / testFreq[i]) + "Hz").c_str()
+    );
+    u8g2.drawStr(0, 24, "[Press]");
+    u8g2.sendBuffer();
+    while (getMaxHall() <= 0.0f) {
+      delay(1);
+    }
+    unsigned long startTime = micros();
+    bool timeout = false;
+    const unsigned long TIMEOUT_US = 5000000UL; // 5s
+    while (getMaxHall() < 1.0f) {
+
+      if (micros() - startTime > TIMEOUT_US) {
+        timeout = true;
+        break;
+      }
+      delay(1);
+    }
+    rels[i] = timeout ? 0 : micros() - startTime;
+    u8g2.clearBuffer();
+    if (timeout) {
+      u8g2.drawStr(0, 36, "Timeout!");
+    } else {
+      u8g2.drawStr(
+        0,
+        36,
+        (String((float)rels[i] / 1000.0f, 2) + "ms").c_str()
+      );
+    }
+    u8g2.drawStr(0, 48, "[Release]");
+    u8g2.sendBuffer();
+
+    while (getMaxHall() > 0.0f) {
+      delay(10);
+    }
+  }
+  LOOP_INTERVAL_US = oldLIU;
+  u8g2.clearBuffer();
+  u8g2.drawStr(0, 12, "Result:");
+  for (int i = 0; i < 4; i++) {
+    String line;
+    if (rels[i] == 0) {
+      line = String(1000UL / testFreq[i]) +
+             "kHz: Timeout";
+    } else {
+      float actTime = 0;
+      switch (prf.inputHandler) {
+        case 0: actTime = (float)rels[i] / 1000.0f * prf.actuation; break;
+        case 1: actTime = (float)rels[i] / 1000.0f * prf.upperThreshold; break;
+        case 2: actTime = (float)rels[i] / 1000.0f * prf.windowSize; break;
+        default: break;
+      }
+      line = String(1000UL / testFreq[i]) +
+             "kHz: " +
+             String((float)rels[i] / 1000.0f, 0) +
+             "ms, | " +
+             String(actTime, 2) + "ms";
+    }
+    u8g2.drawStr(
+      0,
+      12 * (i + 2),
+      line.c_str()
+    );
+  }
+  u8g2.sendBuffer();
+  while (getButton() != 3) {
+    delay(10);
   }
 }
 
@@ -511,38 +720,34 @@ void filtMenu() {
     float maxHall = max(max(hallVal[0], hallVal[1]), hallVal[2]);
     float maxFoot = max(max(windowFoot[0], windowFoot[1]), windowFoot[2]);
     int btn = getButton();
+    globFont();
     switch (btn) {
-      case 0: doFilter = !doFilter; break;
-      case 1: filterType = (filterType + 1) % 2; break;
-      case 2: 
-      if (filterType == 0) ovsSamples = (int)valueSet("Samples (OVS)", ovsSamples, true, 2, 256);
-      else emaAlpha = valueSet("Alpha (EMA 1%)", emaAlpha*100, true, 0.01, 100) / 100;
-      emaAlpha = constrain(emaAlpha, 0.00001, 1);
-      break;
+      case 0: prf.doFilter = !prf.doFilter; break;
+      case 1: changeFiltSet(); break;
+      case 2: testFilt(); break;
       case 3: running = false; break;
       default: break;
     }
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
-    u8g2.drawStr(0, 12, doFilter ? (filterType == 0 ? "Filter [OVS]" : "Filter [EMA]") : "Filter [Off]");
+    u8g2.drawStr(0, 12, prf.doFilter ? (prf.filterType == 0 ? "Filter [OVS]" : "Filter [EMA]") : "Filter [Off]");
     u8g2.drawStr(0, 24, ("1 " + String((int)rawVal[0])).c_str());
     u8g2.drawStr(0, 35, ("2 " + String((int)rawVal[1])).c_str());
     u8g2.drawStr(0, 46, ("3 " + String((int)rawVal[2])).c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
-    u8g2.drawStr(108, 12, String(maxHall).c_str());
-    u8g2.drawStr(0, 56, doFilter ? "F1: Disable" : "F1: Enable"); u8g2.drawStr(58, 56, filterType == 0 ? "F2: use EMA" : "F2: use OVS");
-    u8g2.drawStr(0, 64, "F3: Change"); u8g2.drawStr(58, 64, "F4: Exit");
+    u8g2.drawStr(128 - u8g2.getStrWidth((String(lastRate) + "Hz").c_str()), 12, (String(lastRate) + "Hz").c_str());
+    u8g2.drawStr(0, 56, prf.doFilter ? "F1: Disable" : "F1: Enable"); u8g2.drawStr(58, 56, "F2: Change");
+    u8g2.drawStr(0, 64, "F3: Test"); u8g2.drawStr(58, 64, "F4: Exit");
     pushGraphValue(maxHall);
     drawGraph(40, 14);
-      switch (inputHandler) {
-        case 0: u8g2.drawLine(40, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - actuation) * (GRAPH_HEIGHT - 1)) + 14); break;
+      switch (prf.inputHandler) {
+        case 0: u8g2.drawLine(40, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14); break;
         case 1:
-          u8g2.drawLine(40, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
-          u8g2.drawLine(40, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
           break;
         case 2:
           u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
-          u8g2.drawLine(40, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
+          u8g2.drawLine(40, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
           break;
         default: break;
       }
@@ -553,10 +758,10 @@ void filtMenu() {
 void effectMenu() {
   int sel = 1;
   while (sel != 0) {
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     String menu_items =
-      "Under Glow " + String(underGlow ? "[On]" : "[Off]") + "\n"
-      + "RGB Led " + String(rgb ? "[On]" : "[Off]");
+      "Under Glow " + String(prf.underGlow ? "[On]" : "[Off]") + "\n"
+      + "RGB Led " + String(prf.rgb ? "[On]" : "[Off]");
     sel = noidMenu("Effects", sel, menu_items.c_str());
     if (sel == 1) {
       int subSel = 1;
@@ -570,61 +775,59 @@ void effectMenu() {
       };
       while (subSel != 0) {
         String tmp =
-        "Under Glow: " + String(underGlow ? "[On]" : "[Off]") + "\n"
-        + "Type: " + effectsList[glowType] + "\n";
+        "Under Glow: " + String(prf.underGlow ? "[On]" : "[Off]") + "\n"
+        + "Type: " + effectsList[prf.glowType] + "\n";
         for (int i = 0; i < 6; i++) {
-          tmp += (glowType == i ? "> " : "") + effectsList[i] + (glowType == i ? " <" : "");
+          tmp += (prf.glowType == i ? "> " : "") + effectsList[i] + (prf.glowType == i ? " <" : "");
           if (i < 5) tmp += "\n";
         }
         subSel = noidMenu("Under Glow", subSel, tmp.c_str());
-        if (subSel == 1) underGlow = !underGlow;
-        else if (subSel >= 3 && subSel <= 8) glowType = subSel - 3;
+        if (subSel == 1) prf.underGlow = !prf.underGlow;
+        else if (subSel >= 3 && subSel <= 8) prf.glowType = subSel - 3;
       }
     } else if (sel == 2) {
       int subSel = 1;
       while (subSel != 0){
         String menuElements =
-          "RGB Led: " + String(rgb ? "[On]" : "[Off]") + "\n"
-          + "Brightness: " + String(rgbBri) + "\n"
-          + "Mode: " + String(doRainbow ? "Rainbow" : "Static") + "\n";
-        if (doRainbow) {
-          menuElements += "Speed: " + String(rainbowStep) + "\n";
-          menuElements += "Interval: " + String(rgbInterval * 10) + " ms";
+          "RGB Led: " + String(prf.rgb ? "[On]" : "[Off]") + "\n"
+          + "Brightness: " + String(prf.rgbBri) + "\n"
+          + "Mode: " + String(prf.doRainbow ? "Rainbow" : "Static") + "\n";
+        if (prf.doRainbow) {
+          menuElements += "Speed: " + String(prf.rainbowStep) + "\n";
+          menuElements += "Interval: " + String(prf.rgbInterval * 10) + " ms";
         } else {
-          menuElements += "Color (" + String(color[0]) + ", " + String(color[1]) + ", " + String(color[2]) + ")";
+          menuElements += "Color (" + String(prf.color[0]) + ", " + String(prf.color[1]) + ", " + String(prf.color[2]) + ")";
         }
         subSel = noidMenu("RGB Led", subSel, menuElements.c_str());
-        if (subSel == 1) rgb = !rgb;
-        if (subSel == 2) rgbBri = (uint8_t)valueSet("Brightness", rgbBri, true, 0, 255);
-        // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &rgbBri, 0, 255, 3, " ");
-        if (subSel == 3) doRainbow = !doRainbow;
+        if (subSel == 1) prf.rgb = !prf.rgb;
+        if (subSel == 2) prf.rgbBri = (uint8_t)valueSet("Brightness", prf.rgbBri, true, 0, 255);
+        // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &prf.rgbBri, 0, 255, 3, " ");
+        if (subSel == 3) prf.doRainbow = !prf.doRainbow;
         if (subSel == 4) {
-          if (doRainbow) {
-            //u8g2.user.InterfaceInputValue("Speed\n", "(1 - 255): ", &rainbowStep, 1, 255, 3, " ");
-            rainbowStep = (uint8_t)valueSet("Speed", rainbowStep, true, 1, 255);
+          if (prf.doRainbow) {
+            //u8g2.user.InterfaceInputValue("Speed\n", "(1 - 255): ", &prf.rainbowStep, 1, 255, 3, " ");
+            prf.rainbowStep = (uint8_t)valueSet("Speed", prf.rainbowStep, true, 1, 255);
           } else {
             int sub2Sel = 1;
             while (sub2Sel != 0) {
               String colorElements =
-                + "R: " + String(color[0]) + "\n"
-                + "G: " + String(color[1]) + "\n"
-                + "B: " + String(color[2]);
+                + "R: " + String(prf.color[0]) + "\n"
+                + "G: " + String(prf.color[1]) + "\n"
+                + "B: " + String(prf.color[2]);
               sub2Sel = noidMenu("Color\n", sub2Sel, colorElements.c_str());
-              if (sub2Sel == 1) color[0] = (uint8_t)valueSet("Red", color[0], true, 0, 255);
-              else if (sub2Sel == 2) color[1] = (uint8_t)valueSet("Blue", color[1], true, 0, 255);
-              else if (sub2Sel == 3) color[2] = (uint8_t)valueSet("Green", color[2], true, 0, 255);
+              if (sub2Sel == 1) prf.color[0] = (uint8_t)valueSet("Red", prf.color[0], true, 0, 255);
+              else if (sub2Sel == 2) prf.color[1] = (uint8_t)valueSet("Blue", prf.color[1], true, 0, 255);
+              else if (sub2Sel == 3) prf.color[2] = (uint8_t)valueSet("Green", prf.color[2], true, 0, 255);
             }
           }
         }
-        if (subSel == 5) rgbInterval = (uint8_t)valueSet("Interval", rgbInterval, true, 1, 255);
+        if (subSel == 5) prf.rgbInterval = (uint8_t)valueSet("Interval", prf.rgbInterval, true, 1, 255);
       }
     }
   }
 }
 
 void displaySetting() {
-  bool hdak = hallDisplayAsKT;
-  float kt = keyTravel;
   int subSel = 1;
   const char lazyAss[] =
     "1s\n"
@@ -652,40 +855,40 @@ void displaySetting() {
       "Custom"
     };
     String menuItem =
-    "Brightness: " + String(screenBri) + "\n"
-    + "Screen on: " + String(screenSaveDuration / 1000) + "s\n"
-    + "Screen save: " + String((screenOffDuration) / 1000) + "s\n";
-    if (logoType == 0 || logoType == 12)
-      menuItem += "Icon: \"" + screenLogo + "\"";
+    "Brightness: " + String(prf.screenBri) + "\n"
+    + "Screen on: " + String(prf.screenSaveDuration / 1000) + "s\n"
+    + "Screen save: " + String((prf.screenOffDuration) / 1000) + "s\n";
+    if (prf.logoType == 0 || prf.logoType == 12)
+      menuItem += "Icon: \"" + String(prf.screenLogo) + "\"";
     else
-      menuItem += "Icon: \"" + String(kaoOrSomethingIdk[logoType - 1]) + "\"";
-    menuItem += "\nHall Value: " + (String)(hdak ? "mm" : "Normalized");
-    menuItem += "\nHall key travel: " + String(kt, 2);
+      menuItem += "Icon: \"" + String(kaoOrSomethingIdk[prf.logoType - 1]) + "\"";
+    menuItem += "\nHall Value: " + (String)(prf.hallDisplayAsKT ? "mm" : "Normalized");
+    menuItem += "\nHall key travel: " + String(prf.keyTravel, 2);
     subSel = noidMenu("Display", subSel, menuItem.c_str());
-    if (subSel == 1) {screenBri = (uint8_t)valueSet("Brightness", screenBri, true, 0, 255); u8g2.setContrast(screenBri);}
+    if (subSel == 1) {prf.screenBri = (uint8_t)valueSet("Brightness", prf.screenBri, true, 0, 255); u8g2.setContrast(prf.screenBri);}
     if (subSel == 2) {
       switch (noidMenu("Screen on", 1, lazyAss)) {
-        case 1: screenSaveDuration = 1000; screenOffDuration += 1000; break;
-        case 2: screenSaveDuration = 5000; break;
-        case 3: screenSaveDuration = 10000; break;
-        case 4: screenSaveDuration = 20000; break;
-        case 5: screenSaveDuration = 30000; break;
-        case 6: screenSaveDuration = 60000; break;
-        case 7: screenSaveDuration = 300000; break;
-        case 8: screenSaveDuration = 600000; break;
+        case 1: prf.screenSaveDuration = 1000; prf.screenOffDuration += 1000; break;
+        case 2: prf.screenSaveDuration = 5000; break;
+        case 3: prf.screenSaveDuration = 10000; break;
+        case 4: prf.screenSaveDuration = 20000; break;
+        case 5: prf.screenSaveDuration = 30000; break;
+        case 6: prf.screenSaveDuration = 60000; break;
+        case 7: prf.screenSaveDuration = 300000; break;
+        case 8: prf.screenSaveDuration = 600000; break;
         default: break;
       }
     }
     if (subSel == 3) {
       switch (noidMenu("Screen on", 1, lazyAss)) {
-        case 1: screenOffDuration = 1000; break;
-        case 2: screenOffDuration = 5000; break;
-        case 3: screenOffDuration = 10000; break;
-        case 4: screenOffDuration = 20000; break;
-        case 5: screenOffDuration = 30000; break;
-        case 6: screenOffDuration = 60000; break;
-        case 7: screenOffDuration = 300000; break;
-        case 8: screenOffDuration = 600000; break;
+        case 1: prf.screenOffDuration = 1000; break;
+        case 2: prf.screenOffDuration = 5000; break;
+        case 3: prf.screenOffDuration = 10000; break;
+        case 4: prf.screenOffDuration = 20000; break;
+        case 5: prf.screenOffDuration = 30000; break;
+        case 6: prf.screenOffDuration = 60000; break;
+        case 7: prf.screenOffDuration = 300000; break;
+        case 8: prf.screenOffDuration = 600000; break;
         default: break;
       }
     }
@@ -697,21 +900,20 @@ void displaySetting() {
       }
       int logSel = noidMenu("Display Icon", 1, tmp.c_str());
       if (logSel == 1) {
-        screenLogo = "Mufuki";
-        logoType = 0;
-      } else if (logSel > 1 && logSel < 12) logoType = logSel;
+        strcpy(prf.screenLogo, "Mufuki");
+        prf.logoType = 0;
+      } else if (logSel > 1 && logSel < 12) prf.logoType = logSel;
       else if (logSel != 0) {
-        screenLogo = keyboard(screenLogo);
-        logoType = 12;
+        strcpy(prf.screenLogo, keyboard(prf.screenLogo).c_str());
+        prf.logoType = 12;
       }
     }
-    if (subSel == 5) hdak = !hdak;
+    if (subSel == 5) prf.hallDisplayAsKT = !prf.hallDisplayAsKT;
     if (subSel == 6) {
-      kt = valueSet("Key Travel (mm):", kt, true, 0.1, 1000);
-      if (keyTravel > 100)  u8g2.userInterfaceMessage("Damn", "da loooong way", "", " ok ");
+      prf.keyTravel = valueSet("Key Travel (mm):", prf.keyTravel, true, 0.1, 1000);
+      if (prf.keyTravel > 100)  u8g2.userInterfaceMessage("Damn", "da loooong way", "", " ok ");
     }
   }
-  if (hdak != hallDisplayAsKT || kt != keyTravel) sysSave();
 }
 
 void mpuMenu() {
@@ -818,7 +1020,7 @@ void mpuMenu() {
           String tmp = String(int(speed * (kph ? 3.6 : 1))) + (kph ? "km/h" : "m/s");
           u8g2.setFont(u8g2_font_fub20_tf);
           u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 40, tmp.c_str());
-          u8g2.setFont(u8g2_font_gulim11_t_korean1);
+          globFont();
           tmp = "X: " + String(int(velX)) + "m/s | Y: " + String(int(velY)) + "m/s | Z: " + String(int(velZ)) + "m/s";
           u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 54, tmp.c_str());
           u8g2.sendBuffer();
@@ -857,9 +1059,9 @@ void showDebug() {
           u8g2.drawStr(0, 10 + i * 10, tmp.c_str());
           tmp = "Raw" + String(i + 1) + ":" + String(rawVal[i]);
           u8g2.drawStr(78, 10 + i * 10, tmp.c_str());
-          tmp = "Min" + String(i + 1) + ":" + String(int(calMin[i]));
+          tmp = "Min" + String(i + 1) + ":" + String(int(prf.calMin[i]));
           u8g2.drawStr(0, 40 + i * 10, tmp.c_str());
-          tmp = "Max" + String(i + 1) + ":" + String(int(calMax[i]));
+          tmp = "Max" + String(i + 1) + ":" + String(int(prf.calMax[i]));
           u8g2.drawStr(78, 40 + i * 10, tmp.c_str());
         }
         break;
@@ -888,7 +1090,7 @@ void showDebug() {
         u8g2.drawStr(0, 30, tmp.c_str());
         tmp = "mac:" + String(WiFi.macAddress());
         u8g2.drawStr(0, 40, tmp.c_str());
-        tmp = "adcDeadZone: [" + String(deadZone[0]) + ", " + String(deadZone[1]) + ", " + String(deadZone[2]) + "]";
+        tmp = "adcDeadZone: [" + String(prf.deadZone[0]) + ", " + String(prf.deadZone[1]) + ", " + String(prf.deadZone[2]) + "]";
         u8g2.drawStr(0, 50, tmp.c_str());
         break;
       }
@@ -958,8 +1160,8 @@ void deadCalib() {
         u8g2.sendBuffer();
         for (int i = 0; i < 2000; i++) {
           int adcVal = 0;
-          if (doFilter) {
-            if (filterType == 0) {
+          if (prf.doFilter) {
+            if (prf.filterType == 0) {
               adcVal = overSample(sw);
             } else {
               adcVal = expoMovAvr(sw);
@@ -969,11 +1171,11 @@ void deadCalib() {
           if (adcVal < aMin) aMin = adcVal;
           delay(1);
         }
-        deadZone[sw] = aMax - aMin + 2;
+        prf.deadZone[sw] = aMax - aMin + 4;
       }
-      int avrgMin = (calMin[0] + calMin[1] + calMin[2]) / 3;
-      int avrgMax = (calMax[0] + calMax[1] + calMax[2]) / 3;
-      int avrgDZ = (deadZone[0] + deadZone[1] + deadZone[2]) / 3;
+      int avrgMin = (prf.calMin[0] + prf.calMin[1] + prf.calMin[2]) / 3;
+      int avrgMax = (prf.calMax[0] + prf.calMax[1] + prf.calMax[2]) / 3;
+      int avrgDZ = (prf.deadZone[0] + prf.deadZone[1] + prf.deadZone[2]) / 3;
       if (avrgMax - avrgMin - avrgDZ * 2 < 100) {
         int opt = u8g2.userInterfaceMessage(
           "Calibration failed!",
@@ -998,7 +1200,7 @@ void deadCalib() {
       }
       String dzs = "Dead Zone: ";
       for (int i = 0; i < 3; i++) {
-        dzs += String(deadZone[i]) + (i < 2 ? "-" : "");
+        dzs += String(prf.deadZone[i]) + (i < 2 ? "-" : "");
       }
       u8g2.userInterfaceMessage(
         "Calibration done!",
@@ -1011,11 +1213,11 @@ void deadCalib() {
       int dSel = 1;
       while (dSel > 0) {
         String dList = 
-        "Hall 1: " + String(deadZone[0])+
-        "\nHall 2: " + String(deadZone[1])+
-        "\nHall 3: " + String(deadZone[2]);
+        "Hall 1: " + String(prf.deadZone[0])+
+        "\nHall 2: " + String(prf.deadZone[1])+
+        "\nHall 3: " + String(prf.deadZone[2]);
         dSel = noidMenu("Manual Set", dSel, dList.c_str());
-        if (dSel > 0) deadZone[dSel - 1] = (int)valueSet(("Dead Zone" + String(dSel)).c_str(), deadZone[dSel - 1], true, 0, 4095);
+        if (dSel > 0) prf.deadZone[dSel - 1] = (int)valueSet(("Dead Zone " + String(dSel)).c_str(), prf.deadZone[dSel - 1], true, 0, 4095);
       }
     }
   }
@@ -1035,7 +1237,7 @@ void splScreen(const char* title, const char* t1, const char* t2, const char* bt
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_tenthinguys_tf);
   u8g2.drawStr(0, 12, title);
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   u8g2.drawStr(0, 25, t1);
   u8g2.drawStr(0, 37, t2);
   if (dobtn)
@@ -1053,7 +1255,7 @@ void firstTimeSetup() {
     u8g2.sendBuffer();
     //delay(8);
   }
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   u8g2.drawStr((128 - u8g2.getStrWidth("NoID"))/2, 54, "NoID");
   u8g2.sendBuffer();
   delay(500);
@@ -1087,14 +1289,14 @@ void firstTimeSetup() {
   while (btn != 1) {
     btn = getButton();
     if (btn == 0) {
-      doFilter = true;
-      filterType = 1;
-      inputHandler = 2;
-      windowSize = 0.25;
-      rgb = true;
-      color[0] = 255; 
-      color[1] = 1;
-      color[2] = 224;
+      prf.doFilter = true;
+      prf.filterType = 1;
+      prf.actuation = 2;
+      prf.windowSize = 0.25;
+      prf.rgb = true;
+      prf.color[0] = 255;
+      prf.color[1] = 1;
+      prf.color[2] = 224;
       saveProfile(configPath.c_str(), prf);
       sysSave();
       splScreen("Setup Done!", "You can hold F4", "to enter menu", " Finish ");
@@ -1171,7 +1373,7 @@ void fomartFS() {
 
   File file = root.openNextFile();
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   u8g2.drawStr((128 - u8g2.getStrWidth("Clearing Flash..."))/2, 28, "Clearing Flash...");
   u8g2.sendBuffer();
   LittleFS.end();
@@ -1209,7 +1411,7 @@ void otaUpdate() {
       int percent = (progress * 100) / total;
 
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+      globFont();
 
       if (percent == 0) {
         char frame[2] = {spinnerFrames[spinnerIndex], '\0'};
@@ -1237,7 +1439,7 @@ void otaUpdate() {
       u8g2.clearBuffer();
       u8g2.setFont(u8g2_font_spleen16x32_mr);
       u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-      u8g2.setFont(u8g2_font_gulim11_t_korean1);
+      globFont();
       u8g2.drawStr((128 - u8g2.getStrWidth("Restarting..."))/2, 54, "Restarting...");
       u8g2.sendBuffer();
       l.fill(l.Color(255, 255, 255));
@@ -1249,7 +1451,7 @@ void otaUpdate() {
   ArduinoOTA.begin();
 
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   u8g2.drawStr((128 - u8g2.getStrWidth("OTA Update"))/2, 20, "OTA Update");
   IPAddress ip = WiFi.localIP();
   String ipStr = ip.toString();
@@ -1281,7 +1483,7 @@ void systemMenu() {
     "OTA Update"
   ;
   while (sel != 0) {
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     sel = noidMenu("System", sel, menuItems);
     switch (sel) {
       case 1: displaySetting(); break;
@@ -1318,7 +1520,7 @@ void about() {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_fub20_tf);
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     u8g2.drawStr((128 - u8g2.getStrWidth(ver.c_str()))/2, 76 - i, ver.c_str());
     u8g2.sendBuffer();
     delay(20);
@@ -1342,7 +1544,7 @@ void about() {
     updateSingleFade();
     underGlowUpdate();
     h += 256;
-    l.rainbow(h, 1, 255, rgbBri, true);
+    l.rainbow(h, 1, 255, prf.rgbBri, true);
     l.show();
     if (getButton() == 3) running = false;
     delay(60);
@@ -1359,7 +1561,7 @@ void wifiConnectScreen() {
     u8g2.clearBuffer();
     u8g2.setFont(u8g2_font_fub20_tf);
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 34, "Mufuki");
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     String conDot = "Connecting";
     for (int i = 0; i < (int)(millis() / 500 % 4); i++) conDot += ".";
     u8g2.drawStr((128 - u8g2.getStrWidth(conDot.c_str()))/2, 48, conDot.c_str());
@@ -1373,7 +1575,7 @@ void wifiConnectScreen() {
   u8g2.clearBuffer();
   u8g2.setFont(u8g2_font_fub20_tf);
   u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 34, "Mufuki");
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   switch (WiFi.status()) {
     case WL_CONNECTED:
       u8g2.drawStr((128 - u8g2.getStrWidth("Connected"))/2, 48, "Connected");
@@ -1387,7 +1589,7 @@ void wifiConnectScreen() {
 }
 
 void wifiMenu() {
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   int subSel = 1;
   int wifiCount = -1;
   while (subSel != 0) {
@@ -1428,7 +1630,7 @@ void wifiMenu() {
         u8g2.clearBuffer();
         u8g2.setFont(u8g2_font_fub20_tf);
         u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-        u8g2.setFont(u8g2_font_gulim11_t_korean1);
+        globFont();
         u8g2.drawStr((128 - u8g2.getStrWidth("Searching..."))/2, 54, "Searching...");
         u8g2.sendBuffer();
         unsigned long scanStart = millis();
@@ -1457,7 +1659,7 @@ void wifiMenu() {
               u8g2.clearBuffer();
               u8g2.setFont(u8g2_font_fub20_tf);
               u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-              u8g2.setFont(u8g2_font_gulim11_t_korean1);
+              globFont();
               u8g2.drawStr((128 - u8g2.getStrWidth("Searching..."))/2, 54, "Searching...");
               u8g2.sendBuffer();
               wifiCount = WiFi.scanNetworks();
@@ -1532,39 +1734,40 @@ void layoutChangeMenu() {
         for (int i = 0; i < 6; i++) {
           if (i < 3) nowLayout += "Sw" + String(i + 1) + ": ";
           else nowLayout += "F" + String(i - 2) + ": ";
-          nowLayout += codeToName(layout[i]);
+          nowLayout += codeToName(prf.layout[i]);
           if (i < 5) nowLayout += "\n";
         }
         layoutSel = noidMenu("Custom Layout", layoutSel, nowLayout.c_str());
         if (layoutSel > 0) {
-          int ckeycode = noidMenu("Change Key", codeToIndex(layout[layoutSel - 1]), buttonName);
-          if (ckeycode > 0) layout[layoutSel - 1] = buttonCode[ckeycode - 1];
+          int ckeycode = noidMenu("Change Key", codeToIndex(prf.layout[layoutSel - 1]), buttonName);
+          if (ckeycode > 0) prf.layout[layoutSel - 1] = buttonCode[ckeycode - 1];
         }
       }
     } else {
       layChange = 0;
       for (int i = 0; i < 6; i++) {
-        layout[i] = preLayout[layoutType][i];
+        prf.layout[i] = preLayout[layoutType][i];
       }
     }
   }
 }
 
 void connectMenu() {
-  String items =
-    "USB HID\n"
-    "Bluetooth\n"
-    "WiFi Settings\n"
-    "Mode: ";
-  switch (usbMode) {
-  case 0: items += "Keyboard"; break;
-  case 1: items += "Gamepad"; break;
-  case 2: items += "Mouse"; break;
-  default: break;
-  }
+  bool bModeC = withBLE;
   int sel = 1;
   int vpidChange = vpidSet;
-  while (sel != 0) {
+  while (sel > 0) {
+    String items =
+      "USB HID\n"
+      "Bluetooth: " + (String)(bModeC ? "Enabled" : "Disabled")
+      + "\nWiFi Settings\n"
+      "Mode: ";
+    switch (usbMode) {
+    case 0: items += "Keyboard"; break;
+    case 1: items += "Gamepad"; break;
+    case 2: items += "Mouse"; break;
+    default: break;
+    }
     sel = noidMenu("Connection", sel, items.c_str());
     if (sel == 1) {
       int subSel = 1;
@@ -1624,7 +1827,7 @@ void connectMenu() {
                 "Continue?",
                 " Yes \n No "
               );
-              if (confirm == 1) LOOP_INTERVAL_US = 125;
+              if (confirm == 1) LOOP_INTERVAL_US = 1;
               break;
             }
             default: break;
@@ -1643,41 +1846,8 @@ void connectMenu() {
       }
     }
     if (sel == 2) {
-      int subSel = 1;
-      subSel = u8g2.userInterfaceMessage(
-        "Attention [1 / 2]",
-        "BLE function is not",
-        "stable",
-        " Next>> "
-      );
-      if (subSel == 0) continue;
-      subSel = u8g2.userInterfaceMessage(
-        "Attention [2 / 2]",
-        "Make sure to calli-",
-        "brate before use",
-        " Ok "
-      );
-      if (subSel == 0) continue;
-      int BLEfunction = -1;
-      while (subSel != 0) {
-        String bleItems =
-          "Device Name: " + btName + "\n"
-          + "--------- Mode ---------\n"
-          + "Keyboard\n"
-          + "Air Mouse\n"
-          + "Gamepad";
-        subSel = noidMenu("Bluetooth", subSel, bleItems.c_str());
-        if (subSel == 1) {
-          btName = keyboard(btName);
-        } else {
-          BLEfunction = subSel - 3;
-          subSel = 0;
-        }
-      }
-      if (BLEfunction == 0) mwk();
-      else if (BLEfunction == 1) marm();
-      else if (BLEfunction == 2) mgp();
-      u8g2.setPowerSave(0);
+      // bModeC = !bModeC;
+      u8g2.userInterfaceMessage("Sorry", "Bluetooth is", "removed from code", " Ok ");
     }
     if (sel == 3) {
       wifiMenu();
@@ -1700,4 +1870,13 @@ void connectMenu() {
       }
     }
   }
+  if (bModeC != withBLE) {
+  int wopt = u8g2.userInterfaceMessage("Noicte", "Bluetooth run", "after restart", " Cancel \n Ok \n Restart");
+  switch (wopt) {
+    case 1: break;
+    case 2: withBLE = bModeC; sysSave(); break;
+    case 3: withBLE = bModeC; sysSave(); forceReset();
+    default: break;
+  }
+}
 }

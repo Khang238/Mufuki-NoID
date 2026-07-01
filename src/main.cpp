@@ -42,13 +42,13 @@ void mainMenu() {
   u8g2.setPowerSave(0);
   u8g2.setFont(u8g2_font_spleen16x32_mr);
   u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   u8g2.drawStr((128 - u8g2.getStrWidth("Main Menu"))/2, 54, "Main Menu");
   u8g2.sendBuffer();
   while (!digitalRead(btnPins[3])) delay(10);
   int sel = 1;
   while (sel > 0) {
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     sel = noidMenu("Main Menu", sel, usbMode == 0 ? kmenu_items : gmenu_items);
     switch (sel) {
       case 1: {
@@ -59,7 +59,7 @@ void mainMenu() {
         "Input Handling\n"
         "Dead Zone";
         while (hSel > 0) {
-          u8g2.setFont(u8g2_font_gulim11_t_korean1);
+          globFont();
           hSel = noidMenu("Hall Settings", hSel, hallSItem);
           switch (hSel) {
             case 1: calibMenu(); break;
@@ -82,9 +82,9 @@ void mainMenu() {
   //   ledcWrite(i, 0);
   //   applyEffect[i] = 0;
   // }
-  if (rgb) {
-    l.setBrightness(rgbBri);
-    l.fill(l.Color(color[0], color[1], color[2]));
+  if (prf.rgb) {
+    l.setBrightness(prf.rgbBri);
+    l.fill(l.Color(prf.color[0], prf.color[1], prf.color[2]));
     l.show();
   } else {
     l.setBrightness(0);
@@ -146,7 +146,7 @@ void displayTask(void* param) {
           screenOff = false;
         }
       }
-      if (bt4Hold && 500 < millis() - bt4time && millis() - bt4time < 1000 && (withBLE ? kblue->isConnected() : tud_ready())) {
+      if (bt4Hold && 500 < millis() - bt4time && millis() - bt4time < 1000 && tud_ready()) {
         u8g2.clearBuffer();
         const char *tmp = "Calibrating...";
         u8g2.drawStr(64 - u8g2.getStrWidth(tmp) / 2, 32 - u8g2.getMaxCharHeight() / 2, tmp);
@@ -164,16 +164,20 @@ void displayTask(void* param) {
             bool shift;
             uint8_t key = charToKey((char)text[i], shift);
             if (key) {
-              KeyReport report = {0};
-              report.modifiers = shift ? KEYBOARD_MODIFIER_LEFTSHIFT : 0;
-              report.keys[0] = key;
+              // KeyReport report = {0};
+              // report.modifiers = shift ? KEYBOARD_MODIFIER_LEFTSHIFT : 0;
+              // report.keys[0] = key;
               uint8_t keycodes[6] = {key, 0, 0, 0, 0, 0};
-              if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              uint8_t modifier = 0;
+              // if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              tud_hid_keyboard_report(dev.report_id, modifier, keycodes);
               delay(randRange(10, 80));
-              report.modifiers = 0;
-              report.keys[0] = 0;
+              // report.modifiers = 0;
+              // report.keys[0] = 0;
+              modifier = 0;
               keycodes[0] = 0;
-              if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              // if (withBLE) kblue->sendReport(&report); else tud_hid_keyboard_report(dev.report_id, report.modifiers, keycodes);
+              tud_hid_keyboard_report(dev.report_id, modifier, keycodes);
               String tmpText = String(i) + ". char: "
               + String(char(text[i])) + ", code: 0x" + String(key, HEX);
               u8g2.setDrawColor(0);
@@ -196,8 +200,8 @@ void displayTask(void* param) {
     }
 
     // Effects
-    if (underGlow) {
-      switch (glowType) {
+    if (prf.underGlow) {
+      switch (prf.glowType) {
         case 0:
           for (int i = 0; i < 3; i++) {
             ledOutput[i] = 0;
@@ -238,18 +242,18 @@ void displayTask(void* param) {
       }
     }
 
-    if (rgb && doRainbow) {
-      if (millis() - lastRGBUpdate > rgbInterval * 10) {
+    if (prf.rgb && prf.doRainbow) {
+      if (millis() - lastRGBUpdate > prf.rgbInterval * 10) {
         lastRGBUpdate = millis();
         static uint16_t hue = 0;
-        hue += 128 + rainbowStep;
-        l.rainbow(hue, 1, 255, rgbBri, true);
+        hue += 128 + prf.rainbowStep;
+        l.rainbow(hue, 1, 255, prf.rgbBri, true);
         l.show();
       }
     }
 
     // Screen
-    if (millis() - waitIDLE < screenSaveDuration) {
+    if (millis() - waitIDLE < prf.screenSaveDuration) {
       if (visIsPlaying()) visPlay();
       else {
         switch (usbMode) {
@@ -260,7 +264,7 @@ void displayTask(void* param) {
         }
       }
     }
-    else if (millis() - waitIDLE < screenSaveDuration + screenOffDuration) {
+    else if (millis() - waitIDLE < prf.screenSaveDuration + prf.screenOffDuration) {
       if (!screenWait) {
         screenSaver("NoID");
         screenWait = true;
@@ -281,7 +285,7 @@ void displayTask(void* param) {
 void setup() {
 
   // Wireless
-  BLEDevice::deinit(true);
+  // BLEDevice::deinit(true);
   WiFi.mode(WIFI_OFF);
 
   // Hardware setup
@@ -292,7 +296,7 @@ void setup() {
   l.show();
   Wire.begin(8, 9);
   u8g2.begin(btnPins[1], btnPins[2], btnPins[0], btnPins[0], btnPins[2], btnPins[3]);
-  u8g2.setContrast(screenBri);
+  u8g2.setContrast(prf.screenBri);
   u8g2.setFontMode(1);
   u8g2.enableUTF8Print();
   u8g2.setFontRefHeightAll();
@@ -303,7 +307,7 @@ void setup() {
   // u8g2.setFont(u8g2_font_5x8_mf);
   // u8g2.drawStr(0, 8, String(esp_reset_reason()).c_str());
   // u8g2.sendBuffer();
-  u8g2.setFont(u8g2_font_gulim11_t_korean1);
+  globFont();
   l.fill(l.Color(255, 255, 0));
   l.show();
   byte status = mpu.begin();
@@ -345,6 +349,7 @@ void setup() {
     saveProfile(configPath.c_str(), prf); // fallback to default
   }
   if (withBLE) {
+    /*
     switch (usbMode) {
       case 0: {
         kblue = new BleKeyboard(btName.c_str(), "NoID", 100);
@@ -370,6 +375,8 @@ void setup() {
         kblue->begin();
       } break;
     }
+    */
+    u8g2.userInterfaceMessage("Sorry", "BLE is removed", "for now", " ok ");
   } else {
     dev.setBaseEP(3);
     gdev.setBaseEP(3);
@@ -385,16 +392,16 @@ void setup() {
     CDCUSBSerial.setCallbacks(new CSCDCCallbacks());
   }
   waitIDLE = millis();
-    if (rgb) {
-    l.setBrightness(rgbBri);
-    l.fill(l.Color(color[0], color[1], color[2]));
+    if (prf.rgb) {
+    l.setBrightness(prf.rgbBri);
+    l.fill(l.Color(prf.color[0], prf.color[1], prf.color[2]));
     l.show();
   } else {
     l.setBrightness(0);
     l.show();
   }
   mpu.calcOffsets();
-  u8g2.setContrast(screenBri);
+  u8g2.setContrast(prf.screenBri);
   xTaskCreatePinnedToCore(hidTask,     "HID",     4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(displayTask, "Display", 8192, NULL, 2, NULL, 1);
   // vTaskDelete(NULL);

@@ -12,36 +12,38 @@ void unpackProfile(Profile& p) {
   LOOP_INTERVAL_US = p.LIU;
 
   // Input
-  inputHandler = p.inputHandler;
-  actuation = p.actuation;
-  windowSize = p.windowSize;
-  upperThreshold = p.upperThreshold;
-  lowerThreshold = p.lowerThreshold;
-  for (int i = 0; i < 3; i++) calMax[i] = p.calMax[i];
-  for (int i = 0; i < 3; i++) calMin[i] = p.calMin[i];
-  for (int i = 0; i < 3; i++) deadZone[i] = p.deadZone[i];
-  doFilter = p.doFilter;
-  emaAlpha = p.emaAlpha;
-  ovsSamples = p.ovsSamples;
-  filterType = p.filterType;
-  for (int i = 0; i < 6; i++) layout[i] = p.layout[i];
+  // inputHandler = p.inputHandler;
+  // actuation = p.actuation;
+  // windowSize = p.windowSize;
+  // upperThreshold = p.upperThreshold;
+  // lowerThreshold = p.lowerThreshold;
+  // for (int i = 0; i < 3; i++) calMax[i] = p.calMax[i];
+  // for (int i = 0; i < 3; i++) calMin[i] = p.calMin[i];
+  // for (int i = 0; i < 3; i++) deadZone[i] = p.deadZone[i];
+  // doFilter = p.doFilter;
+  // emaAlpha = p.emaAlpha;
+  // ovsSamples = p.ovsSamples;
+  // filterType = p.filterType;
+  // for (int i = 0; i < 6; i++) layout[i] = p.layout[i];
 
   // Display
-  screenBri = p.screenBri;
-  screenSaveDuration = p.screenSaveDuration;
-  screenOffDuration = p.screenOffDuration;
-  logoType = p.logoType;
-  screenLogo = String(p.screenLogo);
+  // screenBri = p.screenBri;
+  // screenSaveDuration = p.screenSaveDuration;
+  // screenOffDuration = p.screenOffDuration;
+  // logoType = p.logoType;
+  // screenLogo = String(p.screenLogo);
+  // hallDisplayAsKT = p.hallDisplayAsKT;
+  // keyTravel = p.keyTravel;
 
   // Effects
-  underGlow = p.underGlow;
-  glowType = p.glowType;
-  rgb = p.rgb;
-  rgbBri = p.rgbBri;
-  for (int i = 0; i < 3; i++) color[i] = p.color[i];
-  doRainbow = p.doRainbow;
-  rainbowStep = p.rainbowStep;
-  rgbInterval = p.rgbInterval;
+  // underGlow = p.underGlow;
+  // glowType = p.glowType;
+  // rgb = p.rgb;
+  // rgbBri = p.rgbBri;
+  // for (int i = 0; i < 3; i++) color[i] = p.color[i];
+  // doRainbow = p.doRainbow;
+  // rainbowStep = p.rainbowStep;
+  // rgbInterval = p.rgbInterval;
 
   // BLE
   btName = String(p.btName);
@@ -52,36 +54,38 @@ void packProfile(Profile& p) {
   p.LIU = LOOP_INTERVAL_US;
 
   // Input
-  p.inputHandler = inputHandler;
-  p.actuation = actuation;
-  p.windowSize = windowSize;
-  p.upperThreshold = upperThreshold;
-  p.lowerThreshold = lowerThreshold;
-  for (int i = 0; i < 3; i++) p.calMax[i] = calMax[i];
-  for (int i = 0; i < 3; i++) p.calMin[i] = calMin[i];
-  for (int i = 0; i < 3; i++) p.deadZone[i] = deadZone[i];
-  p.doFilter = doFilter;
-  p.filterType = filterType;
-  p.emaAlpha = emaAlpha;
-  p.ovsSamples = ovsSamples;
-  for (int i = 0; i < 6; i++) p.layout[i] = layout[i];
+  // p.inputHandler = inputHandler;
+  // p.actuation = actuation;
+  // p.windowSize = windowSize;
+  // p.upperThreshold = upperThreshold;
+  // p.lowerThreshold = lowerThreshold;
+  // for (int i = 0; i < 3; i++) p.calMax[i] = calMax[i];
+  // for (int i = 0; i < 3; i++) p.calMin[i] = calMin[i];
+  // for (int i = 0; i < 3; i++) p.deadZone[i] = deadZone[i];
+  // p.doFilter = doFilter;
+  // p.filterType = filterType;
+  // p.emaAlpha = emaAlpha;
+  // p.ovsSamples = ovsSamples;
+  // for (int i = 0; i < 6; i++) p.layout[i] = layout[i];
 
   // Display
-  p.screenBri = screenBri;
-  p.screenSaveDuration = screenSaveDuration;
-  p.screenOffDuration = screenOffDuration;
-  p.logoType = logoType;
-  strncpy(p.screenLogo, screenLogo.c_str(), sizeof(p.screenLogo) - 1);
+  // p.screenBri = screenBri;
+  // p.screenSaveDuration = screenSaveDuration;
+  // p.screenOffDuration = screenOffDuration;
+  // p.logoType = logoType;
+  // strncpy(p.screenLogo, screenLogo.c_str(), sizeof(p.screenLogo) - 1);
+  // p.hallDisplayAsKT = hallDisplayAsKT;
+  // p.keyTravel = keyTravel;
 
   // Effects
-  p.underGlow = underGlow;
-  p.glowType = glowType;
-  p.rgb = rgb;
-  p.rgbBri = rgbBri;
-  for (int i = 0; i < 3; i++) p.color[i] = color[i];
-  p.doRainbow = doRainbow;
-  p.rainbowStep = rainbowStep;
-  p.rgbInterval = rgbInterval;
+  // p.underGlow = underGlow;
+  // p.glowType = glowType;
+  // p.rgb = rgb;
+  // p.rgbBri = rgbBri;
+  // for (int i = 0; i < 3; i++) p.color[i] = color[i];
+  // p.doRainbow = doRainbow;
+  // p.rainbowStep = rainbowStep;
+  // p.rgbInterval = rgbInterval;
 
   // BLE
   strncpy(p.btName, btName.c_str(), sizeof(p.btName) - 1);
@@ -123,6 +127,8 @@ bool saveProfile(const char* path, Profile& p) {
   doc["so"] = p.screenOffDuration;
   doc["lg"] = p.logoType;
   doc["sl"] = p.screenLogo;
+  doc["kt"] = p.keyTravel;
+  doc["hdkt"] = p.hallDisplayAsKT;
 
   // Effects
   doc["ug"] = p.underGlow;
@@ -185,7 +191,7 @@ bool loadProfile(const char* path, Profile& p) {
   p.emaAlpha       = doc["ea"] | p.emaAlpha;
   p.ovsSamples     = doc["os"] | p.ovsSamples;
   if (doc["dz"].is<JsonArray>())
-    for (int i = 0; i < 3; i++) p.deadZone[i] = doc["dz"] | p.deadZone[i];
+    for (int i = 0; i < 3; i++) p.deadZone[i] = doc["dz"][i] | p.deadZone[i];
   if (doc["cx"].is<JsonArray>())
     for (int i = 0; i < 3; i++) p.calMax[i] = doc["cx"][i] | p.calMax[i];
   if (doc["cm"].is<JsonArray>())
@@ -194,10 +200,12 @@ bool loadProfile(const char* path, Profile& p) {
     for (int i = 0; i < 6; i++) p.layout[i] = doc["lo"][i] | p.layout[i];
 
   // Display
-  p.screenBri          = doc["sb"] | p.screenBri;
-  p.screenSaveDuration = doc["ss"] | p.screenSaveDuration;
-  p.screenOffDuration  = doc["so"] | p.screenOffDuration;
-  p.logoType           = doc["lg"] | p.logoType;
+  p.screenBri          = doc["sb"]   | p.screenBri;
+  p.screenSaveDuration = doc["ss"]   | p.screenSaveDuration;
+  p.screenOffDuration  = doc["so"]   | p.screenOffDuration;
+  p.logoType           = doc["lg"]   | p.logoType;
+  p.hallDisplayAsKT    = doc["hdkt"] | p.hallDisplayAsKT;
+  p.keyTravel          = doc["kt"]   | p.keyTravel;
   if (doc["sl"].is<const char*>())
     strncpy(p.screenLogo, doc["sl"].as<const char*>(), sizeof(p.screenLogo) - 1);
 
@@ -251,8 +259,6 @@ bool sysSave() {
   doc["bt"] = withBLE;
   doc["pv"] = profileVersion;
   doc["vpid"] = vpidSet;
-  doc["hak"] = hallDisplayAsKT;
-  doc["kt"] = keyTravel;
   if (serializeJsonPretty(doc, file) == 0) {
     file.close();
     return false;
@@ -282,8 +288,6 @@ bool sysLoad() {
   withBLE = doc["bt"] | withBLE;
   profileVersion = doc["pv"] | profileVersion;
   vpidSet = doc["vpid"] | vpidSet;
-  hallDisplayAsKT = doc["hak"] | hallDisplayAsKT;
-  keyTravel = doc["kt"] | keyTravel;
   if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }
@@ -564,7 +568,7 @@ void axsOCfg(uint8_t& destIdx, float& om, float& ox) {
 }
 
 void axsAdd(Profile& p) {
-  uint8_t srce = 0, destIdx = 0;  // destIdx → index trong axisOnlyDst
+  uint8_t srce = 0, destIdx = 0;
   float im = 0.0f, ix = 1.0f, om = -127.0f, ox = 127.0f;
   bool cmp = true;
   uint8_t cmb = COMBINE_NONE;
@@ -586,7 +590,7 @@ void axsAdd(Profile& p) {
     }
     opts += "\nConfirm";
 
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     sel = noidMenu("Add Axis Map", sel, opts.c_str());
 
     switch (sel) {
@@ -626,7 +630,7 @@ void thrAdd(Profile& p) {
       "Keycode: " + (destIdx == 0 ? codeToName(kc) : String(kc)) + "\n"
       "Confirm";
 
-    u8g2.setFont(u8g2_font_gulim11_t_korean1);
+    globFont();
     sel = noidMenu("Add Threshold", sel, opts.c_str());
 
     switch (sel) {
@@ -728,7 +732,7 @@ void editMapping(Profile& p) {
               default: break;
             }
             opts += "\nConfirm";
-            u8g2.setFont(u8g2_font_gulim11_t_korean1);
+            globFont();
             esel = noidMenu("Edit Axis Map", esel, opts.c_str());
             bool imuSrc = (srce >= SRC_GYRO_X);
             switch (esel) {

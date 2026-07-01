@@ -91,6 +91,8 @@ struct Profile {
   unsigned long screenOffDuration = 10000;
   int           logoType = 0;
   char          screenLogo[32] = "Mufuki";
+  bool          hallDisplayAsKT = true;
+  float         keyTravel = 4.5;
 
   // Effects
   bool    underGlow = false;

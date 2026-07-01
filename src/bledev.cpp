@@ -1,5 +1,6 @@
 #include "bledev.h"
 
+/*
 void mgp() {
   applyMappings(prf, mos);
   if (!gblue->isConnected()) return;
@@ -32,7 +33,16 @@ void marm() {
   m[4] = 0;
   mlue->inputMouse->setValue(m, 5);
   mlue->inputMouse->notify();
-}
+  }
+
+void mwk() {
+    KeyReport report = {0};
+    uint8_t idx = 0;
+    for (int i = 0; i < 6; i++)
+      if (nowPress[i]) report.keys[idx++] = layout[i];
+    kblue->sendReport(&report);
+  }
+*/
 
 int randRange(int min, int max) {return min + esp_random() % (max - min + 1);}
 
@@ -54,12 +64,4 @@ uint8_t charToKey(char c, bool &shift) {
 
   if (c = ' ') return HID_KEY_SPACE;
   return 0; // unsupported
-}
-
-void mwk() {
-  KeyReport report = {0};
-  uint8_t idx = 0;
-  for (int i = 0; i < 6; i++)
-    if (nowPress[i]) report.keys[idx++] = layout[i];
-  kblue->sendReport(&report);
 }

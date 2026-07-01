@@ -3,34 +3,38 @@
 
 #include <WiFi.h>
 #include <Wire.h>
+#include <vector>
 #include <ctype.h>
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <LittleFS.h>
-#include <BleGamepad.h>
 #include <ArduinoOTA.h>
-#include <BleMouse.h>
 #include <ArduinoJson.h>
-#include <BleKeyboard.h>
-#include <NimBLEDevice.h>
 #include <MPU6050_light.h>
 #include <Adafruit_NeoPixel.h>
 
 #include "HIDTypes.h"
 #include "sdkconfig.h"
-#include <NimBLEUtils.h>
-#include <NimBLEServer.h>
-#include <NimBLEHIDDevice.h>
-#include <NimBLECharacteristic.h>
+
+// #include <BleMouse.h>
+// #include <BleGamepad.h>
+// #include <BleKeyboard.h>
+// #include <NimBLEUtils.h>
+// #include <NimBLEDevice.h>
+// #include <NimBLEServer.h>
+// #include <NimBLEHIDDevice.h>
+// #include <NimBLECharacteristic.h>
 
 #include "esp_task_wdt.h"
 #include "hidkeyboard.h"
 #include "hidgamepad.h"
-#include "hidmouse.h"
-#include "cdcusb.h"
 #include "esptinyusb.h"
+#include "hidmouse.h"
 #include "keyName.h"
+#include "cdcusb.h"
 #include "img.h"
+
+#include "font.h"
 
 extern const String ver;
 extern bool firstTime;
@@ -50,9 +54,9 @@ extern HIDgamepad gdev;
 extern HIDmouse mdev;
 extern CDCusb CDCUSBSerial;
 
-extern BleGamepad* gblue;
-extern BleKeyboard* kblue;
-extern BleMouse* mlue;
+// extern BleGamepad* gblue;
+// extern BleKeyboard* kblue;
+// extern BleMouse* mlue;
 
 extern MPU6050 mpu;
 extern U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2;
@@ -61,27 +65,27 @@ constexpr int adcPins[3] = {1, 2, 3};        // Hall switch
 constexpr int ledPins[3] = {7, 6, 5};        // LED output
 constexpr int btnPins[4] = {5, 6, 12, 13};   // Buttons
 
-extern int deadZone[3];
-extern float calMax[3];
-extern float calMin[3];
+// extern int deadZone[3];
+// extern float calMax[3];
+// extern float calMin[3];
 extern float  hallVal[3];
 extern int rawVal[3];
-extern bool doFilter;
-extern int filterType;
-extern int ovsSamples;
-extern float emaAlpha;
+// extern bool doFilter;
+// extern int filterType;
+// extern int ovsSamples;
+// extern float emaAlpha;
 
 extern bool  nowPress[6];
 extern bool lastPress[6];
-extern uint8_t layout[6];
-extern bool hallDisplayAsKT;
-extern float keyTravel;
+// extern uint8_t layout[6];
+// extern bool hallDisplayAsKT;
+// extern float keyTravel;
 
-extern int inputHandler;
-extern float actuation;
-extern float upperThreshold;
-extern float lowerThreshold;
-extern float windowSize;
+// extern int inputHandler;
+// extern float actuation;
+// extern float upperThreshold;
+// extern float lowerThreshold;
+// extern float windowSize;
 extern float windowFoot[3];
 
 extern unsigned long pressTime[4];
@@ -92,31 +96,31 @@ extern bool needReport;
 
 // Screen
 extern unsigned long waitIDLE;
-extern unsigned long screenSaveDuration;
-extern unsigned long screenOffDuration;
 extern bool screenWait;
 extern bool screenOff;
-extern uint8_t screenBri;
-extern int logoType;
-extern String screenLogo;
+// extern unsigned long screenSaveDuration;
+// extern unsigned long screenOffDuration;
+// extern uint8_t screenBri;
+// extern int logoType;
+// extern String screenLogo;
 
 extern int maxBri;
 extern uint32_t lastDecTime;
 extern uint8_t mode;
 extern uint8_t ledOutput[3];
 
-extern bool underGlow;
-extern int glowType;
+// extern bool underGlow;
 extern bool applyEffect[3];
-extern bool rgb;
-extern uint8_t rgbBri;
-extern uint8_t color[3];
-extern uint8_t rainbowStep;
-extern bool doRainbow;
-extern int updateInterval;
-extern uint8_t rgbInterval;
 extern unsigned long lastRGBUpdate;
 extern unsigned long lastUpdate;
+// extern int glowType;
+// extern bool rgb;
+// extern uint8_t rgbBri;
+// extern uint8_t color[3];
+// extern uint8_t rainbowStep;
+// extern bool doRainbow;
+extern int updateInterval;
+// extern uint8_t rgbInterval;
 
 extern bool alwaysReport;
 extern int layoutType;
@@ -143,6 +147,8 @@ constexpr uint16_t vpidPair[4][2] = {
   {0x057E, 0x2009}, // Switch Pro Controller
   {0x046D, 0xC216}  // Logitech F310
 };
+
+void globFont();
 
 void screenSaver(const char* title);
 
