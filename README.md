@@ -14,6 +14,7 @@
 ## On Progress
 - random things (i ran out of thing to do)
     - actually remove old variables since the new profile system already has them
+    - check out sandbox to download the demo animation
 
 ## Planing:
 - **REMOVE BLE FROM CODE SINCE IT EATING 30% OF THE FLASH RN**
