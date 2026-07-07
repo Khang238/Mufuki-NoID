@@ -854,6 +854,7 @@ void displaySetting() {
       "lenny face",
       "Custom"
     };
+
     String menuItem =
     "Brightness: " + String(prf.screenBri) + "\n"
     + "Screen on: " + String(prf.screenSaveDuration / 1000) + "s\n"
@@ -863,7 +864,8 @@ void displaySetting() {
     else
       menuItem += "Icon: \"" + String(kaoOrSomethingIdk[prf.logoType - 1]) + "\"";
     menuItem += "\nHall Value: " + (String)(prf.hallDisplayAsKT ? "mm" : "Normalized");
-    menuItem += "\nHall key travel: " + String(prf.keyTravel, 2);
+    menuItem += "\nKey travel: " + String(prf.keyTravel, 2) + "mm";
+    menuItem += "\nMain Screen";
     subSel = noidMenu("Display", subSel, menuItem.c_str());
     if (subSel == 1) {prf.screenBri = (uint8_t)valueSet("Brightness", prf.screenBri, true, 0, 255); u8g2.setContrast(prf.screenBri);}
     if (subSel == 2) {
@@ -912,6 +914,31 @@ void displaySetting() {
     if (subSel == 6) {
       prf.keyTravel = valueSet("Key Travel (mm):", prf.keyTravel, true, 0.1, 1000);
       if (prf.keyTravel > 100)  u8g2.userInterfaceMessage("Damn", "da loooong way", "", " ok ");
+    }
+    if (subSel == 7) {
+      int animSel = 1;
+      while (animSel > 0) {
+        bool isPlaying = visIsPlaying();
+        String tmp = "Mode: " + (String)(visIsPlaying() ? "Normal" : "Animation") + "\n"
+        + "Animation File";
+        animSel = noidMenu("Main Screen", 1, tmp.c_str());
+        if (animSel == 1) {
+          if (isPlaying) visStop();
+          else visPlay();
+        } else if (animSel == 2) {
+          std::vector<String> animations = listAnimations();
+          String animList = "";
+          for (int i = 0; i < animations.size(); i++) {
+            animList += animations[i];
+            if (i < animations.size() - 1) animList += "\n";
+          }
+          int alaunch = noidMenu("Animation Files", 1, animList.c_str());
+          if (alaunch > 0 && alaunch <= animations.size()) {
+            visStop();
+            visLoad(("/" + animations[alaunch - 1]).c_str());
+          }
+        }
+      }
     }
   }
 }
@@ -1473,6 +1500,38 @@ void otaUpdate() {
   forceReset();
 }
 
+void fileMan() {
+  bool brw = true;
+  String currentPath = "/";
+  while (brw) {
+    std::vector<String> files = listFiles(currentPath.c_str());
+    String fileList = "";
+    for (int i = 0; i < files.size(); i++) {
+      fileList += files[i];
+      if (i < files.size() - 1) fileList += "\n";
+    }
+    int sel = noidMenu(currentPath.c_str(), 1, fileList.c_str());
+    if (sel > 0 && sel <= files.size()) {
+      String selectedFile = files[sel - 1];
+      if (selectedFile.endsWith("/")) {
+        currentPath += selectedFile;
+      } else {
+        int action = u8g2.userInterfaceMessage(
+          selectedFile.c_str(),
+          "What do you want to do?",
+          "",
+          " Delete \n Back "
+        );
+        if (action == 1) {
+          LittleFS.remove((currentPath + selectedFile).c_str());
+        }
+      }
+    } else {
+      brw = false;
+    }
+  }
+}
+
 void systemMenu() {
   int sel = 1;
   const char menuItems[] =
@@ -1480,7 +1539,9 @@ void systemMenu() {
     "MPU\n"
     "Reset\n"
     "Debug\n"
-    "OTA Update"
+    "File Manager\n"
+    "OTA Update\n"
+    "Sandbox"
   ;
   while (sel != 0) {
     globFont();
@@ -1490,7 +1551,9 @@ void systemMenu() {
       case 2: mpuMenu(); break;
       case 3: fomartFS(); break;
       case 4: showDebug(); break;
-      case 5: otaUpdate(); break;
+      case 5: fileMan(); break;
+      case 6: otaUpdate(); break;
+      case 7: gitDownload(); break;
       default: break;
     }
   }

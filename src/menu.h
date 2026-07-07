@@ -4,6 +4,8 @@
 #include "profile.h"
 #include "effect.h"
 #include "bledev.h"
+#include "sandbox.h"
+#include "visplayer.h"
 
 #define GRAPH_WIDTH 88
 #define GRAPH_HEIGHT 32
@@ -52,6 +54,8 @@ void firstTimeSetup();
 void fomartFS();
 
 void otaUpdate();
+
+void fileMan();
 
 void systemMenu();
 

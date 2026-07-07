@@ -13,6 +13,9 @@
 #include <MPU6050_light.h>
 #include <Adafruit_NeoPixel.h>
 
+#include <HTTPClient.h>
+#include <WiFiClientSecure.h>
+
 #include "HIDTypes.h"
 #include "sdkconfig.h"
 

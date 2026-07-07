@@ -23,7 +23,11 @@ bool sysSave();
 
 bool sysLoad();
 
+std::vector<String> listFiles(const char* path = "/");
+
 std::vector<String> listProfiles();
+
+std::vector<String> listAnimations();
 
 void profileMenu();
 

@@ -292,6 +292,28 @@ bool sysLoad() {
   return true;
 }
 
+std::vector<String> listFiles(const char* path) {
+  std::vector<String> fileList;
+  File root = LittleFS.open(path);
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return fileList;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    String fname = file.name();
+    fileList.push_back(fname);
+    file = root.openNextFile();
+  }
+  file.close();
+  return fileList;
+}
+
 std::vector<String> listProfiles() {
   std::vector<String> prfList;
   File root = LittleFS.open("/");
@@ -314,6 +336,30 @@ std::vector<String> listProfiles() {
   }
   file.close();
   return prfList;
+}
+
+std::vector<String> listAnimations() {
+  std::vector<String> aniList;
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return aniList;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    String fname = file.name();
+    if (fname.endsWith(".vis")) {
+      aniList.push_back(fname);
+    }
+    file = root.openNextFile();
+  }
+  file.close();
+  return aniList;
 }
 
 void profileMenu() {
