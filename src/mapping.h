@@ -93,6 +93,9 @@ struct Profile {
   char          screenLogo[32] = "Mufuki";
   bool          hallDisplayAsKT = true;
   float         keyTravel = 4.5;
+  bool          AOD = false;
+  bool          AODAntiBurnIn = true;
+  int           GMTPlus = 0;
 
   // Effects
   bool    underGlow = false;

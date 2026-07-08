@@ -6,3 +6,5 @@ constexpr char* file_url = "https://github.com/Khang238/Mufuki-NoID/raw/refs/hea
 constexpr char* github_root_ca = "-----BEGIN CERTIFICATE-----\n...\n-----END CERTIFICATE-----";
 
 void gitDownload();
+
+void clockCheck();

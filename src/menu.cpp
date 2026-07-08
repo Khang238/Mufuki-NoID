@@ -126,6 +126,45 @@ char globalTitle[32] = "NoID_Mufuki";
 float globalTitleFloat[32] = {0};
 bool isTitleInitialized = false;
 
+void drawScrambleText(int x, int y, const char* targetTitle) {
+  if (targetTitle == nullptr) targetTitle = "";
+  int targetLen = strlen(targetTitle);
+  if (targetLen > 31) targetLen = 31;
+
+  if (!isTitleInitialized) {
+    memset(globalTitle, ' ', 31);
+    globalTitle[31] = '\0';
+    for (int i = 0; i < 32; i++) {
+      globalTitleFloat[i] = 32.0f;
+    }
+    isTitleInitialized = true;
+  }
+
+  int currentLen = strlen(globalTitle);
+  int maxLen = (targetLen > currentLen) ? targetLen : currentLen;
+  if (maxLen > 31) maxLen = 31;
+
+  bool isFinished = true; // Cờ kiểm tra xem hiệu ứng đã chạy xong chưa
+  for (int i = 0; i < maxLen; i++) {
+    float tar = (i < targetLen) ? (float)targetTitle[i] : 32.0f;
+    
+    globalTitleFloat[i] += (tar - globalTitleFloat[i]) * 0.25f;
+    
+    int asciiVal = (int)(globalTitleFloat[i] + 0.5f);
+    if (asciiVal < 32) asciiVal = 32;
+    if (asciiVal > 126) asciiVal = 126;
+    
+    globalTitle[i] = (char)asciiVal;
+
+    if (abs(tar - globalTitleFloat[i]) > 0.1f) {
+      isFinished = false;
+    }
+  }
+  globalTitle[maxLen] = '\0';
+
+  u8g2.drawStr(x, y, globalTitle);
+}
+
 int noidMenu(const char* title, int startIndex, const char* list) {
   #define COLLAPSE_SPACE 6
 
@@ -211,26 +250,24 @@ int noidMenu(const char* title, int startIndex, const char* list) {
     windowPos += (targetWindowPos - windowPos) * 0.5;
     lift += (maxLift - lift) * 0.25;
 
-    if (titleH > 0) {
-      int currentLen = strlen(globalTitle);
-      int maxLen = (targetLen > currentLen) ? targetLen : currentLen;
-      if (maxLen > 31) maxLen = 31;
-
-      for (int i = 0; i < maxLen; i++) {
-        float tar = (i < targetLen) ? (float)targetTitle[i] : 32.0f;
-        globalTitleFloat[i] += (tar - globalTitleFloat[i]) * 0.25;
-        int asciiVal = (int)(globalTitleFloat[i] + 0.5f);
-        if (asciiVal < 32) asciiVal = 32;
-        if (asciiVal > 126) asciiVal = 126;
-        globalTitle[i] = (char)asciiVal;
-      }
-      globalTitle[maxLen] = '\0';
-    }
+    // if (titleH > 0) {
+    //   int currentLen = strlen(globalTitle);
+    //   int maxLen = (targetLen > currentLen) ? targetLen : currentLen;
+    //   if (maxLen > 31) maxLen = 31;
+    //   for (int i = 0; i < maxLen; i++) {
+    //     float tar = (i < targetLen) ? (float)targetTitle[i] : 32.0f;
+    //     globalTitleFloat[i] += (tar - globalTitleFloat[i]) * 0.25;
+    //     int asciiVal = (int)(globalTitleFloat[i] + 0.5f);
+    //     if (asciiVal < 32) asciiVal = 32;
+    //     if (asciiVal > 126) asciiVal = 126;
+    //     globalTitle[i] = (char)asciiVal;
+    //   }
+    //   globalTitle[maxLen] = '\0';
+    // }
 
     u8g2.clearBuffer();
     for (int i = 0; i < count; i++) {
       float itemY = titleH + (i * boxH) - windowPos;
-      
       if (itemY + boxH >= titleH && itemY <= 64) {
         char buf[32];
         getItem(list, i, buf, sizeof(buf));
@@ -264,7 +301,8 @@ int noidMenu(const char* title, int startIndex, const char* list) {
     if (titleH > 0) {
       u8g2.setDrawColor(1);
       u8g2.setFontMode(1);
-      u8g2.drawStr(4, fontH, globalTitle);
+      // u8g2.drawStr(4, fontH, globalTitle);
+      drawScrambleText(4, fontH, targetTitle);
       u8g2.drawHLine(0, titleH - 2, 128);
     }
     u8g2.sendBuffer();
@@ -866,6 +904,7 @@ void displaySetting() {
     menuItem += "\nHall Value: " + (String)(prf.hallDisplayAsKT ? "mm" : "Normalized");
     menuItem += "\nKey travel: " + String(prf.keyTravel, 2) + "mm";
     menuItem += "\nMain Screen";
+    menuItem += "\nAlways On Display";
     subSel = noidMenu("Display", subSel, menuItem.c_str());
     if (subSel == 1) {prf.screenBri = (uint8_t)valueSet("Brightness", prf.screenBri, true, 0, 255); u8g2.setContrast(prf.screenBri);}
     if (subSel == 2) {
@@ -937,6 +976,19 @@ void displaySetting() {
             visStop();
             visLoad(("/" + animations[alaunch - 1]).c_str());
           }
+        }
+      }
+    }
+    if (subSel == 8) {
+      int aodSel = 1;
+      while (aodSel > 0) {
+        String tmp = "AOD: " + (String)(prf.AOD ? "On" : "Off") + "\n"
+                   + "GMT Offset: " + String(prf.GMTPlus);
+        aodSel = noidMenu("Always On Display", 1, tmp.c_str());
+        if (aodSel == 1) {
+          prf.AOD = !prf.AOD;
+        } else if (aodSel == 2) {
+          prf.GMTPlus = valueSet("GMT Offset:", prf.GMTPlus, true, 0, 12);
         }
       }
     }
@@ -1045,7 +1097,7 @@ void mpuMenu() {
         if (millis() - ldu > 200) {
           u8g2.clearBuffer();
           String tmp = String(int(speed * (kph ? 3.6 : 1))) + (kph ? "km/h" : "m/s");
-          u8g2.setFont(u8g2_font_fub20_tf);
+          u8g2.setFont(u8g2_font_spleen16x32_mr);
           u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 40, tmp.c_str());
           globFont();
           tmp = "X: " + String(int(velX)) + "m/s | Y: " + String(int(velY)) + "m/s | Z: " + String(int(velZ)) + "m/s";
@@ -1275,7 +1327,7 @@ void splScreen(const char* title, const char* t1, const char* t2, const char* bt
 
 void firstTimeSetup() {
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_fub20_tf);
+  u8g2.setFont(u8g2_font_spleen16x32_mr);
   for (int i = 0; i < 41; i++) {
     u8g2.clearBuffer();
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, i, "Mufuki");
@@ -1553,66 +1605,95 @@ void systemMenu() {
       case 4: showDebug(); break;
       case 5: fileMan(); break;
       case 6: otaUpdate(); break;
-      case 7: gitDownload(); break;
+      case 7: clockCheck(); break;
       default: break;
     }
   }
 }
 
 void about() {
+  bool running = true;
+  int estCount = 0;
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_gulim_11_idk);
+  String tmp = "Version: " + ver;
+  u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 27, tmp.c_str());
+  u8g2.drawStr(64 - u8g2.getStrWidth("By NoID Team") / 2, 39, "By NoID Team");
+  u8g2.sendBuffer();
+  while (running) {
+    switch (getButton()) {
+      case 0: estCount++; break;
+      case 1: if (estCount > 5) running = false; break;
+      case 3: return;
+      default: break;
+    }
+    delay(10);
+  }
+  
   l.setBrightness(255);
   l.fill(l.Color(255, 0, 255));
   l.show();
-  bool running = true;
-  for (int i = 0; i < 10; i++) {
+  // if you are a programmer or just want to show off
+  // feel free to add your name here, just make sure it is less than 32 characters
+  const int numProgrammers = 1;
+  const char programmers[numProgrammers][32] = {
+    "Khang238" // <--- the one who made everything btw
+  };
+
+  unsigned long lastUpdate = 0;
+  for (int i = 0; i < numProgrammers; i++) {
+    lastUpdate = millis();
+    while (millis() - lastUpdate < 2000) {
+      u8g2.clearBuffer();
+      u8g2.setFont(u8g2_font_5x8_tr);
+      u8g2.drawStr(0, 8, "Made with love by:");
+      if (strlen(programmers[i]) < 9) u8g2.setFont(u8g2_font_spleen16x32_mr);
+      else u8g2.setFont(u8g2_font_gulim_11_idk);
+      drawScrambleText(0, 32, programmers[i]);
+      u8g2.sendBuffer();
+    }
+  }
+  lastUpdate = millis();
+  while (millis() - lastUpdate < 2000) {
     u8g2.clearBuffer();
-    u8g2.drawXBMP(20, 20, 88, 232, logoKao[i]);
-    u8g2.setDrawColor(0);
-    u8g2.drawBox(20, 0, 88, 20);
-    u8g2.drawBox(20, 40, 88, 24);
-    u8g2.setDrawColor(1);
+    u8g2.setFont(u8g2_font_5x8_tr);
+    u8g2.drawStr(0, 8, "Made with love by:");
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
+    drawScrambleText(0, 32, "NoID");
     u8g2.sendBuffer();
-    delay(500);
+  }
+  lastUpdate = millis();
+  while (millis() - lastUpdate < 2000) {
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
+    drawScrambleText(0, 32, "---------");
+    u8g2.sendBuffer();
   }
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_fub20_tf);
-  u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
+  u8g2.setFont(u8g2_font_gulim_11_idk);
+  const char* ch1 = "Thank you";
+  const char* ch2 = "For choosing Mufuki";
+  const char* ch3 = "as your companion.";
+  u8g2.drawStr(64 - u8g2.getStrWidth(ch1) / 2, 18, ch1);
+  u8g2.drawStr(64 - u8g2.getStrWidth(ch2) / 2, 32, ch2);
+  u8g2.drawStr(64 - u8g2.getStrWidth(ch3) / 2, 46, ch3);
+  u8g2.setFont(u8g2_font_5x8_tr);
+  tmp = ver + " - NoID 2026";
+  u8g2.drawStr(128 - u8g2.getStrWidth(tmp.c_str()), 64, tmp.c_str());
+  u8g2.sendBuffer();
+  while (getButton() == -1) delay(10);
+  lastUpdate = millis();
+  while (millis() - lastUpdate < 1000) {
+    u8g2.clearBuffer();
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
+    drawScrambleText(0, 32, "Love You!");
+    u8g2.sendBuffer();
+  }
+  u8g2.clearBuffer();
+  u8g2.drawXBMP(20, 20, 88, 20, logoKao[0]);
   u8g2.sendBuffer();
   delay(1000);
-  for (int i = 0; i < 23; i++) {
-    u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_fub20_tf);
-    u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
-    globFont();
-    u8g2.drawStr((128 - u8g2.getStrWidth(ver.c_str()))/2, 76 - i, ver.c_str());
-    u8g2.sendBuffer();
-    delay(20);
-  }
-  u8g2.setDrawColor(0);
-  u8g2.drawBox(0, 52, 128, 12);
-  u8g2.setDrawColor(1);
-  u8g2.drawStr((128 - u8g2.getStrWidth((ver + " - by NoID").c_str()))/2, 54, (ver + " - by NoID").c_str());
-  u8g2.sendBuffer();
-  uint16_t h = 0;
-  while (running) {
-    // updateInput();
-    for (int i = 0; i < 3; i++) {
-      ledOutput[i] = 0;
-      if (applyEffect[i]) {
-        singleFade[i].active = true;
-        singleFade[i].startTime = millis();
-        applyEffect[i] = false;
-      }
-    }
-    updateSingleFade();
-    underGlowUpdate();
-    h += 256;
-    l.rainbow(h, 1, 255, prf.rgbBri, true);
-    l.show();
-    if (getButton() == 3) running = false;
-    delay(60);
-  }
-  l.setBrightness(0);
+  l.fill(l.Color(0, 0, 0));
   l.show();
 }
 
@@ -1622,7 +1703,7 @@ void wifiConnectScreen() {
     int btnPress = getButton();
     if (btnPress == 3) beginTime = millis() - 62000;
     u8g2.clearBuffer();
-    u8g2.setFont(u8g2_font_fub20_tf);
+    u8g2.setFont(u8g2_font_spleen16x32_mr);
     u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 34, "Mufuki");
     globFont();
     String conDot = "Connecting";
@@ -1636,7 +1717,7 @@ void wifiConnectScreen() {
     u8g2.sendBuffer();
   }
   u8g2.clearBuffer();
-  u8g2.setFont(u8g2_font_fub20_tf);
+  u8g2.setFont(u8g2_font_spleen16x32_mr);
   u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 34, "Mufuki");
   globFont();
   switch (WiFi.status()) {
@@ -1691,7 +1772,7 @@ void wifiMenu() {
     if (subSel == 3) {
       if (!wStatus) { // do nothing with the wifi ip
         u8g2.clearBuffer();
-        u8g2.setFont(u8g2_font_fub20_tf);
+        u8g2.setFont(u8g2_font_spleen16x32_mr);
         u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
         globFont();
         u8g2.drawStr((128 - u8g2.getStrWidth("Searching..."))/2, 54, "Searching...");
@@ -1720,7 +1801,7 @@ void wifiMenu() {
             wsSel = noidMenu("Select Network", wsSel, Wlist.c_str());
             if (wsSel == 1) {
               u8g2.clearBuffer();
-              u8g2.setFont(u8g2_font_fub20_tf);
+              u8g2.setFont(u8g2_font_spleen16x32_mr);
               u8g2.drawStr((128 - u8g2.getStrWidth("Mufuki"))/2, 40, "Mufuki");
               globFont();
               u8g2.drawStr((128 - u8g2.getStrWidth("Searching..."))/2, 54, "Searching...");

@@ -288,7 +288,7 @@ String keyboard(String text) {
       }
       if (button == 3) return prevText;
       u8g2.clearBuffer();
-      u8g2.setFont(u8g2_font_fub20_tf);
+      u8g2.setFont(u8g2_font_spleen16x32_mr);
       u8g2.drawStr(64 - u8g2.getStrWidth(currentCode.c_str()) / 2, 20, currentCode.c_str());
       globFont();
       char tmp = decodeMorse(currentCode.c_str());

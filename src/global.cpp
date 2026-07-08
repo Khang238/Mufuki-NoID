@@ -1,7 +1,7 @@
 #include "global.h"
 #include "profile.h"
 
-const String ver = "v2.6.8";
+const String ver = "v2.7.0";
 bool firstTime = false;
 
 int  usbMode = 0;
@@ -31,29 +31,13 @@ U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(
 );
 
 // Analog
-// int deadZone[3] = {32, 32, 32};
-// float calMax[3] = {2600, 2700, 2800};
-// float calMin[3] = {2200, 2300, 2300};
 float  hallVal[3] = { 0.00,  0.00,  0.00};
 int rawVal[3] = {0, 0, 0};
-// bool doFilter = false;
-// int filterType = 0;
-// int ovsSamples = 16;
-// float emaAlpha = 0.05;
 
 // Buttons
 bool  nowPress[6] = {false};
 bool lastPress[6] = {false};
-// uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
-// bool hallDisplayAsKT= true;
-// float keyTravel = 4.5;
-
-// int inputHandler = 0; // 0: Digital emulation, 1: Hysteresis handling, 2: Dynamic actuation
-// float actuation = 0.3; // For digital emulation
-// float upperThreshold = 0.6; // For hysteresis handling
-// float lowerThreshold = 0.4; // For hysteresis handling
-// float windowSize = 0.3; // For dynamic actuation
-float windowFoot[3] = {0.00, 0.00, 0.00}; // For dynamic actuation
+float windowFoot[3] = {0.00, 0.00, 0.00};
 
 unsigned long pressTime[4] = {0};
 bool holding[4] = {false};
@@ -65,11 +49,8 @@ bool needReport = false;
 unsigned long waitIDLE = 0;
 bool screenWait = false;
 bool screenOff  = false;
-// unsigned long screenSaveDuration = 5000;
-// unsigned long screenOffDuration  = 5000;
-// uint8_t screenBri = 1;
-// int logoType = 0;
-// String screenLogo = "Mufuki";
+bool timeUpdated = false;
+struct tm timeinfo;
 
 int maxBri = 16;
 uint32_t lastDecTime = 0;
@@ -78,13 +59,6 @@ uint8_t ledOutput[3] = { 0,0,0 };
 
 // bool underGlow = false;
 bool applyEffect[3] = {false, false, false};
-// int glowType = 0; // 0: Tap, 1: Ripple, 2: Smooth, 3: Burn-in, 4: Soild
-// bool rgb = false;
-// uint8_t rgbBri = 255;
-// uint8_t color[] = {255, 255, 255};
-// uint8_t rainbowStep = 1;
-// bool doRainbow = false;
-// uint8_t rgbInterval = 10; // in n x 10ms
 int updateInterval = 32;
 unsigned long lastRGBUpdate = 0;
 unsigned long lastUpdate = 0;
@@ -108,7 +82,7 @@ void globFont() {
 void screenSaver(const char* title) {
   u8g2.clearBuffer();
   if (prf.logoType > 1 && prf.logoType < 12) {
-    u8g2.drawXBMP(20, 20, 88, 232, logoKao[prf.logoType - 2]);
+    u8g2.drawXBMP(20, 20, 88, 20, logoKao[prf.logoType - 2]);
     u8g2.setDrawColor(0);
     u8g2.drawBox(20, 0, 88, 20);
     u8g2.drawBox(20, 40, 88, 24);

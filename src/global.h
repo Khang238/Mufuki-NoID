@@ -18,6 +18,7 @@
 
 #include "HIDTypes.h"
 #include "sdkconfig.h"
+#include "time.h"
 
 // #include <BleMouse.h>
 // #include <BleGamepad.h>
@@ -68,27 +69,11 @@ constexpr int adcPins[3] = {1, 2, 3};        // Hall switch
 constexpr int ledPins[3] = {7, 6, 5};        // LED output
 constexpr int btnPins[4] = {5, 6, 12, 13};   // Buttons
 
-// extern int deadZone[3];
-// extern float calMax[3];
-// extern float calMin[3];
 extern float  hallVal[3];
 extern int rawVal[3];
-// extern bool doFilter;
-// extern int filterType;
-// extern int ovsSamples;
-// extern float emaAlpha;
 
 extern bool  nowPress[6];
 extern bool lastPress[6];
-// extern uint8_t layout[6];
-// extern bool hallDisplayAsKT;
-// extern float keyTravel;
-
-// extern int inputHandler;
-// extern float actuation;
-// extern float upperThreshold;
-// extern float lowerThreshold;
-// extern float windowSize;
 extern float windowFoot[3];
 
 extern unsigned long pressTime[4];
@@ -101,11 +86,8 @@ extern bool needReport;
 extern unsigned long waitIDLE;
 extern bool screenWait;
 extern bool screenOff;
-// extern unsigned long screenSaveDuration;
-// extern unsigned long screenOffDuration;
-// extern uint8_t screenBri;
-// extern int logoType;
-// extern String screenLogo;
+extern bool timeUpdated;
+extern struct tm timeinfo;
 
 extern int maxBri;
 extern uint32_t lastDecTime;
@@ -116,14 +98,7 @@ extern uint8_t ledOutput[3];
 extern bool applyEffect[3];
 extern unsigned long lastRGBUpdate;
 extern unsigned long lastUpdate;
-// extern int glowType;
-// extern bool rgb;
-// extern uint8_t rgbBri;
-// extern uint8_t color[3];
-// extern uint8_t rainbowStep;
-// extern bool doRainbow;
 extern int updateInterval;
-// extern uint8_t rgbInterval;
 
 extern bool alwaysReport;
 extern int layoutType;

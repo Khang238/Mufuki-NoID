@@ -23,6 +23,8 @@ int countItems(const char* items);
 
 bool getItem(const char* items, int index, char* out, size_t outSize);
 
+void drawScrambleText(int x, int y, const char* targetTitle);
+
 int noidMenu(const char* title, int startIndex, const char* list);
 
 void calibMenu();

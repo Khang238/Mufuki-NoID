@@ -7,17 +7,15 @@
 - I used Wokwi to create a Mufuki emulator right in VS Code; you can check it out (if your PC is powerful enough to run the emulator, mine doesn't).
 
 ## Updated:
-- A litte more Effect for Menu
-- Added unit options (mm or normalized)
-- (Small gadget) Press and hold F4 for more than 0.3 seconds and less than 0.5 second (in keypad mode) to open the GUI for string input
+- Alway on display with clock (requires internet connection)
 
 ## On Progress
 - random things (i ran out of thing to do)
     - actually remove old variables since the new profile system already has them
-    - check out sandbox to download the demo animation
 
 ## Planing:
 - **REMOVE BLE FROM CODE SINCE IT EATING 30% OF THE FLASH RN**
+- True Rapid Trigger
 - More effect for the underglow leds since they are rgb now
 - Macro support
 

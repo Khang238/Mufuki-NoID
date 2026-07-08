@@ -7,6 +7,9 @@
 #include "cdc.h"
 #include "visplayer.h"
 
+bool lastWifiState = false;
+int AODcorner = 0;
+
 int min(int a, int b) {
   return (a < b) ? a : b;
 }
@@ -22,14 +25,16 @@ void mainMenu() {
     "Effects\n"
     "Connection\n"
     "Profile\n"
-    "System";
+    "System\n"
+    "About";
   const char gmenu_items[] =
     "Hall Settings\n"
     "Mapping\n"
     "Effects\n"
     "Connection\n"
     "Profile\n"
-    "System";
+    "System\n"
+    "About";
   if (analogLed) {
     for (int i = 0; i < 3; i++) ledcWrite(i, 0);
   } else {
@@ -75,6 +80,7 @@ void mainMenu() {
       case 4: connectMenu(); break;
       case 5: profileMenu(); break;
       case 6: systemMenu(); break;
+      case 7: about(); break;
       default: break;
     }
   }
@@ -132,7 +138,15 @@ void displayTask(void* param) {
         bt4Hold = true;
         bt4time = millis();
       }
-      if (millis() - bt4time > 1000 && bt4Hold) {menuOpen = true; mainMenu(); waitIDLE = millis(); fromMenu = true; menuOpen = false;}
+      if (millis() - bt4time > 1000 && bt4Hold) {
+        menuOpen = true;
+        mainMenu();
+        waitIDLE = millis();
+        fromMenu = true;
+        menuOpen = false;
+        if (WiFi.getMode() != WIFI_OFF) lastWifiState = true;
+        if (lastWifiState && !timeUpdated) WiFi.mode(WIFI_STA);
+      }
       if (screenOff) u8g2.setPowerSave(0);
       screenWait = false;
       screenOff = false;
@@ -253,6 +267,7 @@ void displayTask(void* param) {
     }
 
     // Screen
+    static int lastMinute = -1;
     if (millis() - waitIDLE < prf.screenSaveDuration) {
       if (visIsPlaying()) visPlay();
       else {
@@ -265,20 +280,71 @@ void displayTask(void* param) {
       }
     }
     else if (millis() - waitIDLE < prf.screenSaveDuration + prf.screenOffDuration) {
-      if (!screenWait) {
+      if (prf.AOD) {
+        lastMinute = -1;
+        char timeStr[10];
+        strftime(timeStr, sizeof(timeStr), "%H:%M:%S", &timeinfo);
+        u8g2.setFont(u8g2_font_spleen16x32_mr);
+        u8g2.clearBuffer();
+        drawScrambleText(64 - u8g2.getStrWidth(timeStr) / 2, 32, timeStr);
+        char dateStr[12];
+        strftime(dateStr, sizeof(dateStr), "%d-%m-%Y", &timeinfo);
+        u8g2.setFont(u8g2_font_gulim_11_idk);
+        u8g2.drawStr(64 - u8g2.getStrWidth(dateStr) / 2, 48, dateStr);
+        u8g2.sendBuffer();
+      }
+      else if (!screenWait) {
         screenSaver("NoID");
         screenWait = true;
       }
     }
     else {
-      if (!screenOff) {
+      if (prf.AOD) {
+        static unsigned long lastAODUpdate = 0;
+        if (timeinfo.tm_min != lastMinute) {
+          lastMinute = timeinfo.tm_min;
+          char timeStr[10];
+          strftime(timeStr, sizeof(timeStr), "%H:%M", &timeinfo);
+          u8g2.setFont(u8g2_font_spleen16x32_mr);
+          u8g2.clearBuffer();
+          switch (AODcorner) {
+            case 0: u8g2.drawStr(64 - u8g2.getStrWidth(timeStr) / 2, 32 + u8g2.getMaxCharHeight() / 2, timeStr); break;
+            case 1: u8g2.drawStr(0, u8g2.getMaxCharHeight(), timeStr); break;
+            case 2: u8g2.drawStr(128 - u8g2.getStrWidth(timeStr), u8g2.getMaxCharHeight(), timeStr); break;
+            case 3: u8g2.drawStr(0, 64, timeStr); break;
+            case 4: u8g2.drawStr(128 - u8g2.getStrWidth(timeStr), 64, timeStr); break;
+          }
+          u8g2.sendBuffer();
+          lastAODUpdate = millis();
+          AODcorner = (AODcorner + 1) % 5;
+        }
+      }
+      else if (!screenOff) {
         u8g2.clearBuffer();
         u8g2.sendBuffer();
         u8g2.setPowerSave(1);
         screenOff = true;
       }
     }
-    vTaskDelay(1); // 1ms yield
+    vTaskDelay(1);
+  }
+}
+
+void timeTask(void* param) {
+  unsigned long lastClockUpdate = 0;
+  while (true) {
+    if (millis() - lastClockUpdate > 5000 && prf.AOD) {
+      if (!timeUpdated && WiFi.getMode() != WIFI_OFF && WiFi.status() == WL_CONNECTED) {
+        configTime(prf.GMTPlus * 3600, 0, "time.google.com", "time.nist.gov");
+        if (getLocalTime(&timeinfo)) {
+          timeUpdated = true;
+          if (!lastWifiState) WiFi.mode(WIFI_OFF);
+        }
+      }
+      lastClockUpdate = millis();
+    }
+    if (timeUpdated) getLocalTime(&timeinfo);
+    vTaskDelay(1000);
   }
 }
 
@@ -286,6 +352,7 @@ void setup() {
 
   // Wireless
   // BLEDevice::deinit(true);
+
   WiFi.mode(WIFI_OFF);
 
   // Hardware setup
@@ -404,7 +471,13 @@ void setup() {
   u8g2.setContrast(prf.screenBri);
   xTaskCreatePinnedToCore(hidTask,     "HID",     4096, NULL, 1, NULL, 0);
   xTaskCreatePinnedToCore(displayTask, "Display", 8192, NULL, 2, NULL, 1);
+  xTaskCreatePinnedToCore(timeTask,    "Time",    4096, NULL, 1, NULL, 1);
   // vTaskDelete(NULL);
+  if (prf.AOD) {
+    WiFi.mode(WIFI_STA);
+    configTime(prf.GMTPlus * 3600, 0, "pool.ntp.org", "time.google.com");
+    if (getLocalTime(&timeinfo)) {timeUpdated = true; WiFi.mode(WIFI_OFF);}
+  }
 }
 
 void loop() {

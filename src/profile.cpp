@@ -129,6 +129,9 @@ bool saveProfile(const char* path, Profile& p) {
   doc["sl"] = p.screenLogo;
   doc["kt"] = p.keyTravel;
   doc["hdkt"] = p.hallDisplayAsKT;
+  doc["aod"] = p.AOD;
+  doc["aodab"] = p.AODAntiBurnIn;
+  doc["gmt"] = p.GMTPlus;
 
   // Effects
   doc["ug"] = p.underGlow;
@@ -200,12 +203,15 @@ bool loadProfile(const char* path, Profile& p) {
     for (int i = 0; i < 6; i++) p.layout[i] = doc["lo"][i] | p.layout[i];
 
   // Display
-  p.screenBri          = doc["sb"]   | p.screenBri;
-  p.screenSaveDuration = doc["ss"]   | p.screenSaveDuration;
-  p.screenOffDuration  = doc["so"]   | p.screenOffDuration;
-  p.logoType           = doc["lg"]   | p.logoType;
-  p.hallDisplayAsKT    = doc["hdkt"] | p.hallDisplayAsKT;
-  p.keyTravel          = doc["kt"]   | p.keyTravel;
+  p.screenBri          = doc["sb"]    | p.screenBri;
+  p.screenSaveDuration = doc["ss"]    | p.screenSaveDuration;
+  p.screenOffDuration  = doc["so"]    | p.screenOffDuration;
+  p.logoType           = doc["lg"]    | p.logoType;
+  p.hallDisplayAsKT    = doc["hdkt"]  | p.hallDisplayAsKT;
+  p.keyTravel          = doc["kt"]    | p.keyTravel;
+  p.AOD                = doc["aod"]   | p.AOD;
+  p.AODAntiBurnIn      = doc["aodab"] | p.AODAntiBurnIn;
+  p.GMTPlus            = doc["gmt"]   | p.GMTPlus;
   if (doc["sl"].is<const char*>())
     strncpy(p.screenLogo, doc["sl"].as<const char*>(), sizeof(p.screenLogo) - 1);
 
