@@ -351,10 +351,7 @@ void keypadMUI() {
 }
 
 void handleKeypad() {
-  // Input Handling
   if (alwaysReport) needReport = true;
-
-  // USB Report
   if (needReport) {
     uint8_t keycodes[6] = {0};
     uint8_t idx = 0;

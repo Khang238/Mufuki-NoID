@@ -261,6 +261,6 @@ uint8_t nameToCode(String name) {
 
 int codeToIndex(uint8_t code) {
   for (int i = 0; i < (int)sizeof(buttonCode); i++)
-    if (buttonCode[i] == code) return i + 1; // 1-indexed cho u8g2
+    if (buttonCode[i] == code) return i + 1;
   return 1;
 }

@@ -76,6 +76,7 @@ struct Profile {
   float   windowSize = 0.3;
   float   upperThreshold = 0.6;
   float   lowerThreshold = 0.4;
+  // float   RTpress = 
   float   calMax[3] = {2200, 2200, 2200};
   float   calMin[3] = {2000, 2000, 2000};
   int     deadZone[3] = {16, 16, 16};

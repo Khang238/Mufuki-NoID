@@ -70,3 +70,5 @@ void wifiMenu();
 void layoutChangeMenu();
 
 void connectMenu();
+
+void macroMenu();

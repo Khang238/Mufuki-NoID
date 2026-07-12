@@ -1605,7 +1605,7 @@ void systemMenu() {
       case 4: showDebug(); break;
       case 5: fileMan(); break;
       case 6: otaUpdate(); break;
-      case 7: clockCheck(); break;
+      case 7: macroTest(); break;
       default: break;
     }
   }
@@ -2023,4 +2023,55 @@ void connectMenu() {
     default: break;
   }
 }
+}
+
+
+
+void macroMenu() {
+  const char slots[] = 
+    "Slot 1\n"
+    "Slot 2\n"
+    "Slot 3";
+  int sel = 1;
+  while (sel > 0) {
+    sel = noidMenu("Macro", sel, slots);
+    if (sel > 0) {
+      Macro& mc = macQuick[sel - 1];
+      const char menu[] = 
+        "Edit Macro\n"
+        "Run Macro\n"
+        "Save Macro\n"
+        "Load Macro";
+      int subSel = 1;
+      while (subSel > 0) {
+        subSel = noidMenu(("Slot " + String(sel)).c_str(), subSel, menu);
+        switch (subSel) {
+        case 1: {
+          int saw = 1;
+          while (saw > 0) {
+            String tmp = "";
+            for (int i = 0; i < mc.macCount; i++) {
+              uint8_t mt = mc.actions[i].mType;
+              String mtn = "";
+              switch (mt) {
+                case MACRO_DELAY  : mtn = "Delay";
+                case MACRO_TEXT   : mtn = "Text";
+                case MACRO_PRESS  : mtn = "Press";
+                case MACRO_RELEASE: mtn = "Release";
+                default: mtn = "INVALID";
+              }
+              tmp += mtn + "\n";
+            }
+            tmp += "[Add]";
+            saw = noidMenu("Edit Macro", saw, tmp.c_str());
+
+          }
+          break;
+        }
+        default:
+          break;
+        }
+      }
+    }
+  }
 }

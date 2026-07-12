@@ -353,7 +353,7 @@ void setup() {
   // Wireless
   // BLEDevice::deinit(true);
 
-  WiFi.mode(WIFI_OFF);
+  // WiFi.mode(WIFI_OFF);
 
   // Hardware setup
   l.begin();
@@ -477,7 +477,7 @@ void setup() {
     WiFi.mode(WIFI_STA);
     configTime(prf.GMTPlus * 3600, 0, "pool.ntp.org", "time.google.com");
     if (getLocalTime(&timeinfo)) {timeUpdated = true; WiFi.mode(WIFI_OFF);}
-  }
+  } else WiFi.mode(WIFI_OFF);
 }
 
 void loop() {

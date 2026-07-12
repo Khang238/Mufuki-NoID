@@ -3,7 +3,6 @@
 void gitDownload() {
   WiFiClientSecure client;
   client.setInsecure(); 
-  // Nếu chạy thực tế ổn định, nên dùng: client.setCACert(github_root_ca);
 
   HTTPClient http;
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -97,4 +96,28 @@ void clockCheck() {
   }
   u8g2.sendBuffer();
   while (getButton() == -1) { delay(10); }
+}
+
+void macroTest() {
+  while (getButton() > -1) { delay(10); }
+  u8g2.clearBuffer();
+  u8g2.setFont(u8g2_font_5x8_tr);
+  Macro mc;
+  u8g2.drawStr(0, 8, "Macro created");
+  u8g2.sendBuffer();
+  addAct(mc, HID_KEY_Z, MACRO_PRESS);
+  addAct(mc, HID_KEY_X, MACRO_PRESS);
+  addAct(mc, HID_KEY_C, MACRO_PRESS);
+  u8g2.drawStr(0, 16, "Added zxc, executing");
+  u8g2.sendBuffer();
+  delay(1000);
+  executeMacro(mc);
+  delay(1000);
+  u8g2.drawStr(0, 24, "try adding text and execute");
+  u8g2.sendBuffer();
+  addTextAct(mc, "Mufuki - An Osu! keypad project", 32);
+  executeMacro(mc);
+  u8g2.drawStr(0, 32, "done");
+  u8g2.sendBuffer();
+  while (getButton() > -1) { delay(10); }
 }
