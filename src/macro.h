@@ -45,7 +45,7 @@ struct Macro {
   macroAct actions[MACRO_MAX_ACTIONS];
 };
 
-Macro macQuick[3];
+extern Macro macQuick[3];
 
 bool addAct(Macro &m, uint8_t keycode, macType mt = MACRO_PRESS, unsigned long adl = 500, uint8_t modifier = MACRO_MOD_NONE);
 bool insertAct(Macro &m, int index, uint8_t keycode, macType mt = MACRO_PRESS, unsigned long adl = 500, uint8_t modifier = MACRO_MOD_NONE);

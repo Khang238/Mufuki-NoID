@@ -27,7 +27,7 @@ void drawGraph(int x, int y) {
   }
 }
 
-float valueSet(const char *title, float input, bool clamp, float clampMin, float clampMax) {
+float valueSet(const char *title, float input, bool clamp, float clampMin, float clampMax, bool sInt) {
   #define SMTH_WAIT 150
   #define SMTH_FACC 1500
   #define SMTH_FAHH 5000
@@ -46,14 +46,14 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
       if (!hlA) {htA = millis(); hlA = true;}
       if (millis() - adw > SMTH_WAIT) {
         adw = millis() + ((millis() - htA < SMTH_FACC) ? 0 : SMTH_WAIT);
-        input += (millis() - htA < SMTH_FAHH ? 0.01 : 0.81);
+        input += (millis() - htA < SMTH_FAHH ? (sInt ? 1 : 0.01) : (sInt ? 8 : 0.81));
       }
     }
     else if (!digitalRead(btnPins[2])) {
       if (!hlB) {htB = millis(); hlB = true;}
       if (millis() - adw > SMTH_WAIT) {
         adw = millis() + ((millis() - htB < SMTH_FACC) ? 0 : SMTH_WAIT);
-        input -= (millis() - htB < SMTH_FAHH ? 0.01 : 0.81);
+        input -= (millis() - htB < SMTH_FAHH ? (sInt ? 1 : 0.01) : (sInt ? 8 : 0.81));
       }
     }
     float diff = hallVal[2] - hallVal[0];
@@ -61,7 +61,7 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
     else if (diff > 0) diff -= FTNDZ;
     else diff += FTNDZ;
     input += diff; // fine-tune with hall input
-    if (nowPress[1]) input = round(input); // snap to integer
+    if (nowPress[1] || sInt) input = round(input); // snap to integer
     if (clamp) input = constrain(input, clampMin, clampMax);
     u8g2.clearBuffer();
     globFont();
@@ -1605,7 +1605,7 @@ void systemMenu() {
       case 4: showDebug(); break;
       case 5: fileMan(); break;
       case 6: otaUpdate(); break;
-      case 7: macroTest(); break;
+      case 7: macroMenu(); break;
       default: break;
     }
   }
@@ -2025,7 +2025,105 @@ void connectMenu() {
 }
 }
 
+const String mList[8] = {
+  "LCtrl",
+  "LShift",
+  "LAlt",
+  "LGui",
+  "RCtrl",
+  "RShift",
+  "RAlt",
+  "RGui"
+};
 
+int modCount(uint8_t modi) {
+  int count = 0;
+  while (modi) {
+    modi &= (modi - 1);
+    count++;
+  }
+  return count;
+}
+
+void addMacroMenu(Macro &macro, int index) {
+  int sel = 1;
+  macType mType = MACRO_PRESS;
+  uint8_t keycode = 0x04;
+  uint8_t modifier = 0;
+  String text = "hello!";
+  unsigned long aDelay = 1000;
+  while (sel > 0) {
+    String tmp = "Type: ";
+    switch (mType) {
+      case MACRO_DELAY  : tmp += "Delay"; break;
+      case MACRO_TEXT   : tmp += "Text"; break;
+      case MACRO_PRESS  : tmp += "Press"; break;
+      case MACRO_HOLD   : tmp += "Hold"; break;
+      case MACRO_RELEASE: tmp += "Release"; break;
+      default: tmp += "INVALID"; break;
+    }
+    tmp += "\nDelay: " + String(aDelay) + "ms";
+    switch (mType) {
+      case MACRO_TEXT   : tmp += "Text: " + text; break;
+      case MACRO_PRESS  : tmp += "Press: " + codeToName(keycode); break;
+      case MACRO_HOLD   : tmp += "Hold: " + codeToName(keycode); break;
+      case MACRO_RELEASE: tmp += "Release: " + codeToName(keycode); break;
+      default: break;
+    }
+    if (mType != MACRO_DELAY) tmp += "/n";
+    if (mType >= MACRO_PRESS && mType <= MACRO_RELEASE) 
+      tmp += "\nModifier: " + String(modCount(modifier));
+    tmp += "\nConfirm";
+    sel = noidMenu("Add Action", sel, tmp.c_str());
+    switch (sel) {
+    case 1: {
+      const char ctype[] =
+        "Press\n"
+        "Hold\n"
+        "Release\n"
+        "Text\n"
+        "Delay"
+      ;
+      mType = (macType)(noidMenu("Action Type", mType + 1, ctype) - 1);
+      break;
+    }
+    case 2:
+      aDelay = valueSet("Delay ms", aDelay, true, 50, 30000, true);
+      break;
+    case 3: {
+      if (mType == MACRO_DELAY) insertAct(macro, index, 0x00, MACRO_DELAY, aDelay);
+      if (mType >= MACRO_PRESS && mType <= MACRO_RELEASE) {
+        int ckeycode = noidMenu("Change Key", codeToIndex(keycode), buttonName);
+        if (ckeycode > 0) keycode = buttonCode[ckeycode - 1];
+      } else {
+        text = keyboard(text);
+      }
+      break;
+    }
+    case 4: {
+      if (mType >= MACRO_PRESS && mType <= MACRO_RELEASE) {
+        int subSel = 1;
+        while (subSel > 0) {
+          String tmp = "";
+          for (int i = 0; i < 8; i++) {
+            if (modifier & (1u << i)) tmp += "[*]";
+            else tmp == "[ ]";
+            tmp += mList[i];
+            if (i < 7) tmp += "\n";
+          }
+          subSel = noidMenu("Modifier", subSel, tmp.c_str());
+          if (subSel > 0) modifier ^= (1 << subSel - 1);
+        }
+      } else {
+        insertTextAct(macro, index, text.c_str(), aDelay); return;
+      }
+      break;
+    }
+    case 5: insertAct(macro, index, keycode, mType, aDelay, modifier); return;
+    default: break;
+    }
+  }
+}
 
 void macroMenu() {
   const char slots[] = 
@@ -2054,17 +2152,23 @@ void macroMenu() {
               uint8_t mt = mc.actions[i].mType;
               String mtn = "";
               switch (mt) {
-                case MACRO_DELAY  : mtn = "Delay";
-                case MACRO_TEXT   : mtn = "Text";
-                case MACRO_PRESS  : mtn = "Press";
-                case MACRO_RELEASE: mtn = "Release";
-                default: mtn = "INVALID";
+                case MACRO_DELAY  : mtn = "Delay"; break;
+                case MACRO_TEXT   : mtn = "Text"; break;
+                case MACRO_PRESS  : mtn = "Press"; break;
+                case MACRO_HOLD   : mtn = "Hold"; break;
+                case MACRO_RELEASE: mtn = "Release"; break;
+                default: mtn = "INVALID"; break;
               }
               tmp += mtn + "\n";
             }
             tmp += "[Add]";
             saw = noidMenu("Edit Macro", saw, tmp.c_str());
-
+            if (saw - 1 < mc.macCount) {
+              //
+            }
+            else {
+              addMacroMenu(mc, mc.macCount);
+            }
           }
           break;
         }

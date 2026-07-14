@@ -406,14 +406,15 @@ void setup() {
     l.setBrightness(255);
     l.show();
     u8g2.userInterfaceMessage("!!WARNING!!", "Fs Mount Failed", "Profile can't load", " OK ");
-  }
-  if (!sysLoad()) {
-    firstTime = true;
-    firstTimeSetup(); // definitely first time
-    firstTime = false;
-  }
-  if (!loadProfile(configPath.c_str(), prf)) {
-    saveProfile(configPath.c_str(), prf); // fallback to default
+  } else {
+    if (!sysLoad()) {
+      firstTime = true;
+      firstTimeSetup(); // definitely first time
+      firstTime = false;
+    }
+    if (!loadProfile(configPath.c_str(), prf)) {
+      saveProfile(configPath.c_str(), prf); // fallback to default
+    }
   }
   if (withBLE) {
     /*

@@ -6,6 +6,7 @@
 #include "bledev.h"
 #include "sandbox.h"
 #include "visplayer.h"
+#include "keyName.h"
 
 #define GRAPH_WIDTH 88
 #define GRAPH_HEIGHT 32
@@ -17,7 +18,7 @@ void pushGraphValue(float val);
 
 void drawGraph(int x, int y);
 
-float valueSet(const char *title, float input, bool clamp = false, float clampMin = -255, float clampMax = 255);
+float valueSet(const char *title, float input, bool clamp = false, float clampMin = -255, float clampMax = 255, bool sInt = false);
 
 int countItems(const char* items);
 

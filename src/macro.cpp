@@ -1,6 +1,4 @@
 #include "macro.h"
-#include <LittleFS.h>
-#include <ArduinoJson.h>
 
 static uint8_t heldKeycodes[MACRO_MAX_HELD_KEYS] = {0};
 static uint8_t heldCount = 0;
@@ -13,6 +11,8 @@ static uint8_t acIndex = 0;
 static uint8_t acCount = 0;
 static bool acLocked = false;
 static unsigned long acLockoutUntil = 0;
+
+Macro macQuick[3];
 
 static inline bool isModifierKeycode(uint8_t kc) {
   return kc >= 0xE0 && kc <= 0xE7;
