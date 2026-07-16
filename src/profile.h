@@ -29,6 +29,8 @@ std::vector<String> listProfiles();
 
 std::vector<String> listAnimations();
 
+std::vector<String> listMacro();
+
 void profileMenu();
 
 void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc);

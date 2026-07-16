@@ -235,10 +235,171 @@ void setupMorse() {
   addMorse("..--", ' ');
 }
 
-bool morseMode = true;
+const int KB_ROW_COUNT = 5;
+
+const char* kbCharsLower[4] = {
+  "1234567890",
+  "qwertyuiop",
+  "asdfghjkl",
+  "zxcvbnm"
+};
+const char* kbCharsUpper[4] = {
+  "1234567890",
+  "QWERTYUIOP",
+  "ASDFGHJKL",
+  "ZXCVBNM"
+};
+const char* kbSymbols[4] = {
+  "!@#$%^&*()",
+  "-_=+[]{}\\|",
+  ";:'\",.<>/?",
+  "`~"
+};
+const char* kbFuncLabels[4]    = {"Shift", "123", "Space", "Enter"};
+const char* kbFuncLabelsSym[4] = {"Shift", "ABC", "Space", "Enter"};
+
+int kbRowLen(int page, int row) {
+  if (row == 4) return 4;
+  const char* r = (page == 0) ? kbCharsLower[row] : kbSymbols[row];
+  return strlen(r);
+}
+
+char kbGetChar(int page, int row, int col, bool shiftOn) {
+  if (page == 0) return shiftOn ? kbCharsUpper[row][col] : kbCharsLower[row][col];
+  return kbSymbols[row][col];
+}
+
+String kbGetLabel(int page, int row, int col, int shiftState) {
+  if (row == 4) {
+    const char* lbl = (page == 0 ? kbFuncLabels[col] : kbFuncLabelsSym[col]);
+    if (col == 0) {
+      if (shiftState == 2) return "CAPS";
+      if (shiftState == 1) return "SHFT";
+      return "shift";
+    }
+    return String(lbl);
+  }
+  return String(kbGetChar(page, row, col, shiftState != 0));
+}
+
+void drawSingleLineTruncated(String text, bool showCursor, int y) {
+  String display = text;
+
+  if (u8g2.getStrWidth(display.c_str()) <= 128) {
+    if (showCursor) display += "_";
+    u8g2.drawStr(0, y, display.c_str());
+    return;
+  }
+
+  String prefix = "...";
+  String tail = display;
+  while (tail.length() > 0 &&
+         u8g2.getStrWidth((prefix + tail).c_str()) > 128) {
+    tail.remove(0, 1);
+  }
+  tail.remove(0, 1);
+  if (showCursor) tail += "_";
+  u8g2.drawStr(0, y, (prefix + tail).c_str());
+}
+
+String qwertyKeyboard(String text) {
+  String prevText = text;
+  bool typing = true;
+  int page = 0;
+  int curRow = 1;
+  int curCol = 0;
+  int shiftState = 0;
+  unsigned long lastShiftTap = 0;
+  while (getButton(true) > 0) delay(10);
+  while (typing) {
+
+    int button = getButton();
+    if (button == 0) {
+      curRow = (curRow - 1 + KB_ROW_COUNT) % KB_ROW_COUNT;
+      int len = kbRowLen(page, curRow);
+      if (curCol >= len) curCol = len - 1;
+    }
+    if (button == 1) {
+      if (curRow == 4) {
+        if (curCol == 0) {
+          if (millis() - lastShiftTap < 400) {
+            shiftState = (shiftState == 2) ? 0 : 2;
+          } else {
+            shiftState = (shiftState == 0) ? 1 : 0;
+          }
+          lastShiftTap = millis();
+        } else if (curCol == 1) {
+          page = 1 - page;
+        } else if (curCol == 2) {
+          if (text.length() < 31) text += ' ';
+        } else if (curCol == 3) {
+          typing = false;
+        }
+      } else {
+        char c = kbGetChar(page, curRow, curCol, shiftState != 0);
+        if (text.length() < 31) text += c;
+        if (shiftState == 1) shiftState = 0;
+      }
+    }
+    if (button == 2) {
+      curRow = (curRow + 1) % KB_ROW_COUNT;
+      int len = kbRowLen(page, curRow);
+      if (curCol >= len) curCol = len - 1;
+    }
+    if (button == 3) {
+      globFont();
+      while (getButton(true) > 0) delay(10);
+      return prevText;
+    }
+
+    if (applyEffect[0]) {
+      int len = kbRowLen(page, curRow);
+      curCol = (curCol - 1 + len) % len;
+      applyEffect[0] = false;
+    }
+    if (applyEffect[1]) {
+      int len = kbRowLen(page, curRow);
+      curCol = (curCol + 1) % len;
+      applyEffect[1] = false;
+    }
+    if (applyEffect[2]) {
+      if (text.length() > 0) text.remove(text.length() - 1);
+      applyEffect[2] = false;
+    }
+
+    u8g2.clearBuffer();
+    globFont();
+    drawSingleLineTruncated(text, ((millis() % 1000) < 500), 9);
+
+    u8g2.setFont(u8g2_font_5x7_tr);
+    int rowY[KB_ROW_COUNT] = {24, 32, 40, 48, 58};
+    for (int r = 0; r < KB_ROW_COUNT; r++) {
+      int len = kbRowLen(page, r);
+      int cellW = (r < 4) ? (128 / 10) : (128 / 4);
+      for (int c = 0; c < len; c++) {
+        int x = c * cellW;
+        String lbl = kbGetLabel(page, r, c, shiftState);
+        if (r == curRow && c == curCol) {
+          u8g2.drawBox(x, rowY[r] - 7, cellW - 1, 9);
+          u8g2.setDrawColor(0);
+          u8g2.drawStr(x + 1, rowY[r], lbl.c_str());
+          u8g2.setDrawColor(1);
+        } else {
+          u8g2.drawStr(x + 1, rowY[r], lbl.c_str());
+        }
+      }
+    }
+    u8g2.sendBuffer();
+  }
+
+  globFont();
+  while (getButton(true) > 0) delay(10);
+  return text;
+}
+
 String keyboard(String text) {
   String prevText = text;
-  if (morseMode) {
+  if (morseKey) {
     bool capsLock = false;
     setupMorse();
     bool typing = true;
@@ -266,7 +427,7 @@ String keyboard(String text) {
         else if (currentCode == "....-.") capsLock = !capsLock; // Caps Lock
         else {
           char decodedChar = decodeMorse(currentCode.c_str());
-          if (text.length() < 255 && !unsignedCharacter)
+          if (text.length() < 31 && !unsignedCharacter)
             text += (char)(capsLock ? toupper(decodedChar) : decodedChar);
         }
         currentCode = "";
@@ -303,8 +464,8 @@ String keyboard(String text) {
       drawWrappedText(u8g2, 0, 50, 128, (((millis() - lastInputTime + 251) % 500 < 250) ? text : text + "_").c_str());
       u8g2.sendBuffer();
     }
-  }
-  root = {'\0', nullptr, nullptr}; // destroy the tree to save memory
+  } else return qwertyKeyboard(text);
+  root = {'\0', nullptr, nullptr};
   return text;
 }
 

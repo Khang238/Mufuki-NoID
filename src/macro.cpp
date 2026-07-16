@@ -1,4 +1,5 @@
 #include "macro.h"
+#include "input.h"
 
 static uint8_t heldKeycodes[MACRO_MAX_HELD_KEYS] = {0};
 static uint8_t heldCount = 0;
@@ -123,10 +124,11 @@ static bool asciiToKeycode(char c, uint8_t &keycode, bool &shift) {
   }
 }
 
-static void typeText(const char *text, unsigned long interCharDelay) {
+static void typeText(const char *text, unsigned long interCharDelay, bool ir = false) {
   if (!text) return;
   uint8_t empty[MACRO_MAX_HELD_KEYS] = {0};
   for (const char *p = text; *p != '\0'; p++) {
+    if (ir && getButton(true) < 0) return;
     uint8_t kc;
     bool shift;
     if (!asciiToKeycode(*p, kc, shift)) continue;
@@ -161,57 +163,67 @@ static bool acCheckAndRecord(uint8_t triggerId) {
 
   if (acCount < ANTICHEAT_MIN_SAMPLES) return true;
 
-  uint8_t start = (acIndex + ANTICHEAT_HISTORY_SIZE - acCount) % ANTICHEAT_HISTORY_SIZE;
-
-  unsigned long minIv = 0xFFFFFFFFUL, maxIv = 0;
-  uint8_t nInt = 0;
-  unsigned long prevTs = 0;
-  bool haveFirst = false;
-
-  for (uint8_t i = 0; i < acCount; i++) {
+  unsigned long ts[ANTICHEAT_HISTORY_SIZE];
+  uint8_t       id[ANTICHEAT_HISTORY_SIZE];
+  uint8_t n = acCount;
+  uint8_t start = (acIndex + ANTICHEAT_HISTORY_SIZE - n) % ANTICHEAT_HISTORY_SIZE;
+  for (uint8_t i = 0; i < n; i++) {
     uint8_t idx = (start + i) % ANTICHEAT_HISTORY_SIZE;
-    unsigned long ts = acTimestamps[idx];
-    if (haveFirst) {
-      unsigned long iv = ts - prevTs;
-      if (iv < minIv) minIv = iv;
-      if (iv > maxIv) maxIv = iv;
-      nInt++;
-    }
-    haveFirst = true;
-    prevTs = ts;
+    ts[i] = acTimestamps[idx];
+    id[i] = acTriggerIds[idx];
   }
+
+  unsigned long intervals[ANTICHEAT_HISTORY_SIZE];
+  uint8_t nInt = n - 1;
+  for (uint8_t i = 0; i < nInt; i++) intervals[i] = ts[i + 1] - ts[i];
 
   bool suspicious = false;
-
-  if (nInt >= ANTICHEAT_MIN_SAMPLES - 1 &&
-      minIv < ANTICHEAT_MIN_INTERVAL_MS &&
-      (maxIv - minIv) <= ANTICHEAT_MAX_JITTER_MS) {
-    suspicious = true;
+  {
+    unsigned long windowStart = (ts[n - 1] > ANTICHEAT_BURST_WINDOW_MS)
+                                   ? (ts[n - 1] - ANTICHEAT_BURST_WINDOW_MS)
+                                   : 0;
+    uint8_t count = 0;
+    for (uint8_t i = 0; i < n; i++) {
+      if (ts[i] >= windowStart) count++;
+    }
+    if (count >= ANTICHEAT_BURST_MAX_COUNT) suspicious = true;
   }
 
-  if (!suspicious) {
-    uint8_t k0 = acTriggerIds[start];
-    uint8_t k1 = 0;
-    bool foundSecond = false;
-    bool pattern = true;
-    for (uint8_t i = 0; i < acCount; i++) {
-      uint8_t idx = (start + i) % ANTICHEAT_HISTORY_SIZE;
-      uint8_t key = acTriggerIds[idx];
-      if ((i % 2) == 0) {
-        if (key != k0) { pattern = false; break; }
-      } else {
-        if (!foundSecond) {
-          k1 = key;
-          foundSecond = true;
-          if (k1 == k0) { pattern = false; break; }
-        } else if (key != k1) {
-          pattern = false;
-          break;
-        }
+  if (!suspicious && nInt > 0) {
+    uint8_t maxP = (uint8_t)(n / 2);
+    if (maxP > ANTICHEAT_MAX_PATTERN_PERIOD) maxP = ANTICHEAT_MAX_PATTERN_PERIOD;
+
+    for (uint8_t p = 1; p <= maxP && !suspicious; p++) {
+      bool periodic = true;
+      for (uint8_t i = p; i < n; i++) {
+        if (id[i] != id[i - p]) { periodic = false; break; }
       }
-    }
-    if (pattern && foundSecond && minIv < ANTICHEAT_MIN_INTERVAL_MS * 2) {
-      suspicious = true;
+      if (!periodic) continue;
+
+      if (p > 1) {
+        bool distinct = false;
+        for (uint8_t i = 1; i < p; i++) {
+          if (id[i] != id[0]) { distinct = true; break; }
+        }
+        if (!distinct) continue;
+      }
+
+      unsigned long sum = 0;
+      for (uint8_t i = 0; i < nInt; i++) sum += intervals[i];
+      unsigned long mean = sum / nInt;
+
+      unsigned long devSum = 0;
+      for (uint8_t i = 0; i < nInt; i++) {
+        unsigned long d = (intervals[i] > mean) ? (intervals[i] - mean) : (mean - intervals[i]);
+        devSum += d;
+      }
+      unsigned long avgAbsDev = devSum / nInt;
+
+      unsigned long threshold = ANTICHEAT_MIN_INTERVAL_MS * p;
+
+      if (mean < threshold && avgAbsDev <= ANTICHEAT_MAX_JITTER_MS) {
+        suspicious = true;
+      }
     }
   }
 
@@ -245,6 +257,7 @@ bool executeMacro(Macro &m, uint8_t triggerId) {
   macroRunning = true;
 
   for (int i = 0; i < m.macCount; i++) {
+    if (m.iTr && getButton(true) < 0) return true;
     macroAct &act = m.actions[i];
 
     switch (act.mType) {
@@ -279,7 +292,7 @@ bool executeMacro(Macro &m, uint8_t triggerId) {
 
       case MACRO_TEXT: {
         macroReleaseAll();
-        typeText(act.text, act.actDelay);
+        typeText(act.text, act.actDelay, m.iTr);
         break;
       }
 
@@ -419,6 +432,8 @@ bool saveMacro(const char *path, Macro &m) {
   DynamicJsonDocument doc(4096);
   doc["pt"] = MACRO_FILE_PT;
   doc["ver"] = 1;
+  doc["r"] = m.rep;
+  doc["it"] = m.iTr;
 
   JsonArray acts = doc.createNestedArray("ac");
   for (int i = 0; i < m.macCount && i < MACRO_MAX_ACTIONS; i++) {
@@ -447,6 +462,8 @@ bool loadMacro(const char *path, Macro &m) {
   if (!doc["pt"].is<int>() || doc["pt"].as<int>() != MACRO_FILE_PT) return false;
 
   clearMacro(m);
+  m.iTr = doc["it"] | m.iTr;
+  m.rep = doc["r"] | m.rep;
 
   if (doc["ac"].is<JsonArray>()) {
     for (JsonObject obj : doc["ac"].as<JsonArray>()) {

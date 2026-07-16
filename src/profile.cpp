@@ -116,10 +116,12 @@ bool saveProfile(const char* path, Profile& p) {
   doc["ft"] = p.filterType;
   doc["ea"] = p.emaAlpha;
   doc["os"] = p.ovsSamples;
+  doc["ot"] = p.layoutType;
   for (int i = 0; i < 3; i++) doc["dz"][i] = p.deadZone[i];
   for (int i = 0; i < 3; i++) doc["cx"][i] = p.calMax[i];
   for (int i = 0; i < 3; i++) doc["cm"][i] = p.calMin[i];
   for (int i = 0; i < 6; i++) doc["lo"][i] = p.layout[i];
+  for (int i = 0; i < 3; i++) doc["lm"][i] = p.launchMacro[i];
 
   // Display
   doc["sb"] = p.screenBri;
@@ -145,6 +147,7 @@ bool saveProfile(const char* path, Profile& p) {
 
   // BLE
   doc["bn"] = p.btName;
+  for (int i = 0; i < 3; i++) doc["mcp"][i] = p.macPath[i];
 
   // Mapping
   JsonArray maps = doc.createNestedArray("mp");
@@ -193,6 +196,7 @@ bool loadProfile(const char* path, Profile& p) {
   p.filterType     = doc["ft"] | p.filterType;
   p.emaAlpha       = doc["ea"] | p.emaAlpha;
   p.ovsSamples     = doc["os"] | p.ovsSamples;
+  p.layoutType     = doc["ot"] | p.layoutType;
   if (doc["dz"].is<JsonArray>())
     for (int i = 0; i < 3; i++) p.deadZone[i] = doc["dz"][i] | p.deadZone[i];
   if (doc["cx"].is<JsonArray>())
@@ -201,6 +205,14 @@ bool loadProfile(const char* path, Profile& p) {
     for (int i = 0; i < 3; i++) p.calMin[i] = doc["cm"][i] | p.calMin[i];
   if (doc["lo"].is<JsonArray>())
     for (int i = 0; i < 6; i++) p.layout[i] = doc["lo"][i] | p.layout[i];
+  if (doc["lm"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) p.launchMacro[i] = doc["lm"][i] | p.launchMacro[i];
+  if (doc["mcp"].is<JsonArray>())
+    for (int i = 0; i < 3; i++) {
+      if (doc["mcp"][i].is<const char*>())
+        strncpy(p.macPath[i], doc["mcp"][i].as<const char*>(), sizeof(p.macPath[i]) - 1);
+    }
+  for (int i = 0; i < 3; i++) loadMacro(p.macPath[i], macQuick[i]);
 
   // Display
   p.screenBri          = doc["sb"]    | p.screenBri;
@@ -264,6 +276,7 @@ bool sysSave() {
   doc["um"] = usbMode;
   doc["bt"] = withBLE;
   doc["pv"] = profileVersion;
+  doc["mk"] = morseKey;
   doc["vpid"] = vpidSet;
   if (serializeJsonPretty(doc, file) == 0) {
     file.close();
@@ -290,10 +303,11 @@ bool sysLoad() {
     const char* data = doc["mp"].as<const char*>();
     if (data) mappingPath = String(data);
   }
-  usbMode = doc["um"] | usbMode;
-  withBLE = doc["bt"] | withBLE;
-  profileVersion = doc["pv"] | profileVersion;
-  vpidSet = doc["vpid"] | vpidSet;
+  morseKey       = doc["mk"]   | morseKey;
+  usbMode        = doc["um"]   | usbMode;
+  withBLE        = doc["bt"]   | withBLE;
+  vpidSet        = doc["vpid"] | vpidSet;
+  profileVersion = doc["pv"]   | profileVersion;
   if (doc["sr"].is<bool>()) systemReset = doc["sr"].as<bool>();
   return true;
 }
@@ -360,6 +374,30 @@ std::vector<String> listAnimations() {
   while (file) {
     String fname = file.name();
     if (fname.endsWith(".vis")) {
+      aniList.push_back(fname);
+    }
+    file = root.openNextFile();
+  }
+  file.close();
+  return aniList;
+}
+
+std::vector<String> listMacro() {
+  std::vector<String> aniList;
+  File root = LittleFS.open("/");
+  if (!root || !root.isDirectory()) {
+    u8g2.clearBuffer();
+    u8g2.drawStr((128 - u8g2.getStrWidth("Error!"))/2, 28, "Error!");
+    u8g2.drawStr((128 - u8g2.getStrWidth("Can't open FS"))/2, 40, "Can't open FS");
+    u8g2.sendBuffer();
+    delay(1000);
+    return aniList;
+  }
+
+  File file = root.openNextFile();
+  while (file) {
+    String fname = file.name();
+    if (fname.endsWith(".mcr")) {
       aniList.push_back(fname);
     }
     file = root.openNextFile();
@@ -603,12 +641,11 @@ void axsOCfg(uint8_t& destIdx, float& om, float& ox) {
         int pick = noidMenu("Output Target", destIdx + 1, dList.c_str());
         if (pick > 0) {
           destIdx = pick - 1;
-          // mouse axes nhỏ hơn gamepad axes
           OutputTarget dst = axisOnlyDstCodes[destIdx];
           if (dst == OUT_MOUSE_X || dst == OUT_MOUSE_Y || dst == OUT_MOUSE_WHEEL)
             { om = -127.0f; ox = 127.0f; }
           else
-            { om = -127.0f; ox = 127.0f; } // gamepad cũng -127~127
+            { om = -127.0f; ox = 127.0f; }
         }
         break;
       }
@@ -706,12 +743,12 @@ void thrAdd(Profile& p) {
       case 4: neg  = valueSet("Neg Threshold", neg,  false, 0.0f, 500.0f); break;
       case 5: abs_ = valueSet("Abs Threshold", abs_, false, 0.0f, 500.0f); break;
       case 6: {
-        if (destIdx == 0) { // OUT_KEY thì chọn keycode, còn OUT_BTN_GP / OUT_MOUSE_BTN thì chọn button index (cũng lưu trong keycode)
+        if (destIdx == 0) {
           int pick = noidMenu("Keycode", codeToIndex(kc), buttonName);
           if (pick > 0) kc = buttonCode[pick - 1];
         } else {
           String bList = "";
-          uint8_t maxBtn = (threshOnlyDstCodes[destIdx] == OUT_BTN_GP) ? 16 : 8; // tối đa 16 nút cho gamepad, 8 nút cho chuột
+          uint8_t maxBtn = (threshOnlyDstCodes[destIdx] == OUT_BTN_GP) ? 16 : 8;
           for (uint8_t i = 0; i < maxBtn; i++)
             bList += String(i) + (i < maxBtn - 1 ? "\n" : "");
           int pick = noidMenu("Button Index", kc + 1, bList.c_str());
@@ -757,12 +794,9 @@ void editMapping(Profile& p) {
       int opt = noidMenu(mappingToString(*m).c_str(), 1, editOpts);
 
       if (opt == 1) {
-        // Edit — không đổi loại, chỉ đổi giá trị
         if (m->isAxis) {
-          // reuse axsAdd logic nhưng pre-fill giá trị
           uint8_t srce  = m->src;
           uint8_t destIdx = 0;
-          // tìm destIdx trong axisOnlyDstCodes
           for (int i = 0; i < axisOnlyDstCount; i++)
             if (axisOnlyDstCodes[i] == m->dst) { destIdx = i; break; }
           float im = m->data.axis.inMin,  ix = m->data.axis.inMax;

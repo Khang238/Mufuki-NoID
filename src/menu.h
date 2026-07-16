@@ -26,7 +26,7 @@ bool getItem(const char* items, int index, char* out, size_t outSize);
 
 void drawScrambleText(int x, int y, const char* targetTitle);
 
-int noidMenu(const char* title, int startIndex, const char* list);
+int noidMenu(const char* title, int startIndex, const char* list, bool rlb = false);
 
 void calibMenu();
 

@@ -2,17 +2,20 @@
 #include "global.h"
 #include "tusb.h"
 
-#define MACRO_MAX_ACTIONS   24
+#define MACRO_MAX_ACTIONS   30
 #define MACRO_MAX_HELD_KEYS 6
 #define MACRO_TEXT_MAX_LEN  32
 
 #define MACRO_TAP_HOLD_MS 10
 
-#define ANTICHEAT_HISTORY_SIZE     8
-#define ANTICHEAT_MIN_SAMPLES      5
-#define ANTICHEAT_MIN_INTERVAL_MS  45UL
-#define ANTICHEAT_MAX_JITTER_MS    2UL
-#define ANTICHEAT_LOCKOUT_MS       30000UL
+#define ANTICHEAT_HISTORY_SIZE       24
+#define ANTICHEAT_MIN_SAMPLES        5
+#define ANTICHEAT_MIN_INTERVAL_MS    45UL
+#define ANTICHEAT_MAX_JITTER_MS      3UL
+#define ANTICHEAT_MAX_PATTERN_PERIOD 5
+#define ANTICHEAT_BURST_WINDOW_MS    1000UL
+#define ANTICHEAT_BURST_MAX_COUNT    14
+#define ANTICHEAT_LOCKOUT_MS         30000UL
 
 #define MACRO_MOD_NONE  0x00
 #define MACRO_MOD_CTRL  KEYBOARD_MODIFIER_LEFTCTRL
@@ -42,6 +45,8 @@ struct macroAct {
 
 struct Macro {
   int macCount = 0;
+  int rep      = 0;
+  bool iTr     = false;
   macroAct actions[MACRO_MAX_ACTIONS];
 };
 

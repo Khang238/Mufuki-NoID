@@ -69,19 +69,19 @@ float valueSet(const char *title, float input, bool clamp, float clampMin, float
     if (!digitalRead(btnPins[3])) {while (!digitalRead(btnPins[3])) delay(10); return sVal;}
 
     u8g2.drawStr((128 - u8g2.getStrWidth(title))/2, 12, title);
-    String tmp = String(input, 2);
     bool toNeg = diff < 0;
     int smth = (int)((diff) * 40);
-    if (fabs(hallVal[2] - hallVal[0]) > 0.0) {
+    if (fabs(hallVal[2] - hallVal[0]) > FTNDZ) {
       u8g2.drawStr(64 + (int)(diff * 46) - 3, 52, toNeg ? "-" : "+");
       if (toNeg) u8g2.drawBox(64 + smth, 44, abs(smth), 8); 
       else       u8g2.drawBox(64, 44, abs(smth), 8);
     }
+    String tmp = String(input, sInt ? 0 : 2);
     u8g2.setFont(u8g2_font_spleen16x32_mr);
     u8g2.drawStr((128 - u8g2.getStrWidth(tmp.c_str()))/2, 40, tmp.c_str());
     u8g2.setFont(u8g2_font_5x8_tr);
     if (clamp) {
-      tmp = "Range: " + String(clampMin, 2) + " to " + String(clampMax);
+      tmp = "Range: " + String(clampMin, sInt ? 0 : 2) + " to " + String(clampMax, sInt ? 0 : 2);
     } else {
       tmp = "[no limit]";
     }
@@ -144,7 +144,7 @@ void drawScrambleText(int x, int y, const char* targetTitle) {
   int maxLen = (targetLen > currentLen) ? targetLen : currentLen;
   if (maxLen > 31) maxLen = 31;
 
-  bool isFinished = true; // Cờ kiểm tra xem hiệu ứng đã chạy xong chưa
+  bool isFinished = true;
   for (int i = 0; i < maxLen; i++) {
     float tar = (i < targetLen) ? (float)targetTitle[i] : 32.0f;
     
@@ -165,10 +165,13 @@ void drawScrambleText(int x, int y, const char* targetTitle) {
   u8g2.drawStr(x, y, globalTitle);
 }
 
-int noidMenu(const char* title, int startIndex, const char* list) {
+float windowPos = 0;
+int noidMenu(const char* title, int startIndex, const char* list, bool rlb) {
   #define COLLAPSE_SPACE 6
+  #define USE_U8G2_MENU  0
 
   while (getButton(true) != -1) {delay(10);}
+  if (USE_U8G2_MENU) return u8g2.userInterfaceSelectionList(title, startIndex, list);
   if (startIndex > 0) startIndex--;
   int selected = startIndex;
   
@@ -184,7 +187,8 @@ int noidMenu(const char* title, int startIndex, const char* list) {
   int viewH = 64 - titleH;
 
   float selBox = selected * boxH;
-  float windowPos = selBox;
+
+  windowPos = rlb ? windowPos : selBox;
 
   float maxWindowPos = (count * boxH > viewH) ? (count * boxH - viewH) : 0;
 
@@ -819,7 +823,7 @@ void effectMenu() {
           tmp += (prf.glowType == i ? "> " : "") + effectsList[i] + (prf.glowType == i ? " <" : "");
           if (i < 5) tmp += "\n";
         }
-        subSel = noidMenu("Under Glow", subSel, tmp.c_str());
+        subSel = noidMenu("Under Glow", subSel, tmp.c_str(), true);
         if (subSel == 1) prf.underGlow = !prf.underGlow;
         else if (subSel >= 3 && subSel <= 8) prf.glowType = subSel - 3;
       }
@@ -836,7 +840,7 @@ void effectMenu() {
         } else {
           menuElements += "Color (" + String(prf.color[0]) + ", " + String(prf.color[1]) + ", " + String(prf.color[2]) + ")";
         }
-        subSel = noidMenu("RGB Led", subSel, menuElements.c_str());
+        subSel = noidMenu("RGB Led", subSel, menuElements.c_str(), true);
         if (subSel == 1) prf.rgb = !prf.rgb;
         if (subSel == 2) prf.rgbBri = (uint8_t)valueSet("Brightness", prf.rgbBri, true, 0, 255);
         // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &prf.rgbBri, 0, 255, 3, " ");
@@ -958,7 +962,7 @@ void displaySetting() {
       int animSel = 1;
       while (animSel > 0) {
         bool isPlaying = visIsPlaying();
-        String tmp = "Mode: " + (String)(visIsPlaying() ? "Normal" : "Animation") + "\n"
+        String tmp = "Mode: " + (String)(visIsPlaying() ? "Animation" : "Normal") + "\n"
         + "Animation File";
         animSel = noidMenu("Main Screen", 1, tmp.c_str());
         if (animSel == 1) {
@@ -966,15 +970,19 @@ void displaySetting() {
           else visPlay();
         } else if (animSel == 2) {
           std::vector<String> animations = listAnimations();
-          String animList = "";
-          for (int i = 0; i < animations.size(); i++) {
-            animList += animations[i];
-            if (i < animations.size() - 1) animList += "\n";
-          }
-          int alaunch = noidMenu("Animation Files", 1, animList.c_str());
-          if (alaunch > 0 && alaunch <= animations.size()) {
-            visStop();
-            visLoad(("/" + animations[alaunch - 1]).c_str());
+          if (animations.size()) {
+            String animList = "";
+            for (int i = 0; i < animations.size(); i++) {
+              animList += animations[i];
+              if (i < animations.size() - 1) animList += "\n";
+            }
+            int alaunch = noidMenu("Animation Files", 1, animList.c_str());
+            if (alaunch > 0 && alaunch <= animations.size()) {
+              visStop();
+              visLoad(("/" + animations[alaunch - 1]).c_str());
+            }
+          } else {
+            if (u8g2.userInterfaceMessage("No Animation Found", "Do you want to", "download demo?", " Yes \n No ") == 1) gitDownload();
           }
         }
       }
@@ -1586,6 +1594,7 @@ void fileMan() {
 
 void systemMenu() {
   int sel = 1;
+  bool ls = morseKey;
   const char menuItems[] =
     "Display\n"
     "MPU\n"
@@ -1593,7 +1602,7 @@ void systemMenu() {
     "Debug\n"
     "File Manager\n"
     "OTA Update\n"
-    "Sandbox"
+    "Keyboard Type"
   ;
   while (sel != 0) {
     globFont();
@@ -1605,9 +1614,18 @@ void systemMenu() {
       case 4: showDebug(); break;
       case 5: fileMan(); break;
       case 6: otaUpdate(); break;
-      case 7: macroMenu(); break;
+      case 7: {
+        int opt = noidMenu("Keyboard Type", 0, morseKey ? "Qwerty\n> Morse <" : "> Qwerty <\nMorse");
+        if (opt == 2) ls = true;
+        else if (opt == 1) ls = false;
+        break;
+      }
       default: break;
     }
+  }
+  if (ls != morseKey) {
+    int opt = u8g2.userInterfaceMessage("Save keyboard", "type to system?", "", " Yes \n No ");
+    if (opt == 1) sysSave();
   }
 }
 
@@ -1854,43 +1872,57 @@ void wifiMenu() {
 
 void layoutChangeMenu() {
   int layChange = 1;
+  String layoutName[] = {
+    "Standard",
+    "WASD",
+    "Arrows",
+    "Shortcuts",
+    "For BLE Key",
+    "Custom"
+  };
   while (layChange != 0) {
-    String layoutName[] = {
-      "Standard",
-      "WASD",
-      "Arrows",
-      "Shortcuts",
-      "For BLE Key",
-      "Custom"
-    };
     String tmpName = "";
     for (int i = 0; i < 6; i++) {
-      tmpName += (i == layoutType ? "> " : "") + layoutName[i] + (i == layoutType ? " <" : "");
+      tmpName += (i == prf.layoutType ? "> " : "") + layoutName[i] + (i == prf.layoutType ? " <" : "");
       if (i < 5) tmpName += "\n";
     }
-    layChange = noidMenu("Layout", layoutType + 1, tmpName.c_str());
+    layChange = noidMenu("Layout", prf.layoutType + 1, tmpName.c_str());
     if (layChange == 0) continue;
-    layoutType = layChange != 0 ? layChange - 1 : layoutType;
-    if (layoutType == 5) {
+    prf.layoutType = layChange != 0 ? layChange - 1 : prf.layoutType;
+    if (prf.layoutType == 5) {
       int layoutSel = 1;
       while (layoutSel != 0) {
         String nowLayout = "";
         for (int i = 0; i < 6; i++) {
           if (i < 3) nowLayout += "Sw" + String(i + 1) + ": ";
           else nowLayout += "F" + String(i - 2) + ": ";
-          nowLayout += codeToName(prf.layout[i]);
+          if (i >= 3 && prf.launchMacro[i - 3] > -1) nowLayout += "Macro " + String(prf.launchMacro[i - 3] + 1);
+          else nowLayout += codeToName(prf.layout[i]);
           if (i < 5) nowLayout += "\n";
         }
         layoutSel = noidMenu("Custom Layout", layoutSel, nowLayout.c_str());
         if (layoutSel > 0) {
-          int ckeycode = noidMenu("Change Key", codeToIndex(prf.layout[layoutSel - 1]), buttonName);
-          if (ckeycode > 0) prf.layout[layoutSel - 1] = buttonCode[ckeycode - 1];
+          bool lv = false;
+          if (layoutSel > 3) {
+            int sl = noidMenu("Change Function", 1, "Key\nMacro");
+            if (sl == 2) {
+              int sopt = noidMenu("Macro", 1, "Slot 1\nSlot 2\nSlot 3");
+              if (sopt > 0) prf.launchMacro[layoutSel - 4] = sopt - 1;
+              prf.layout[layoutSel - 1] = HID_KEY_NONE;
+              lv = true;
+            } else if (sl == 1) {prf.launchMacro[layoutSel - 4] = -1;}
+            else lv = true;
+          }
+          if (!lv) {
+            int ckeycode = noidMenu("Change Key", codeToIndex(prf.layout[layoutSel - 1]), buttonName);
+            if (ckeycode > 0) prf.layout[layoutSel - 1] = buttonCode[ckeycode - 1];
+          }
         }
       }
     } else {
       layChange = 0;
       for (int i = 0; i < 6; i++) {
-        prf.layout[i] = preLayout[layoutType][i];
+        prf.layout[i] = preLayout[prf.layoutType][i];
       }
     }
   }
@@ -2063,6 +2095,7 @@ void addMacroMenu(Macro &macro, int index) {
       default: tmp += "INVALID"; break;
     }
     tmp += "\nDelay: " + String(aDelay) + "ms";
+    if (mType != MACRO_DELAY) tmp += "\n";
     switch (mType) {
       case MACRO_TEXT   : tmp += "Text: " + text; break;
       case MACRO_PRESS  : tmp += "Press: " + codeToName(keycode); break;
@@ -2070,7 +2103,6 @@ void addMacroMenu(Macro &macro, int index) {
       case MACRO_RELEASE: tmp += "Release: " + codeToName(keycode); break;
       default: break;
     }
-    if (mType != MACRO_DELAY) tmp += "/n";
     if (mType >= MACRO_PRESS && mType <= MACRO_RELEASE) 
       tmp += "\nModifier: " + String(modCount(modifier));
     tmp += "\nConfirm";
@@ -2084,14 +2116,16 @@ void addMacroMenu(Macro &macro, int index) {
         "Text\n"
         "Delay"
       ;
-      mType = (macType)(noidMenu("Action Type", mType + 1, ctype) - 1);
+      int mt = noidMenu("Action Type", mType + 1, ctype);
+      if (mt > 0) mType = (macType)(mt - 1);
+      if (mType == MACRO_TEXT) aDelay = 20;
       break;
     }
     case 2:
-      aDelay = valueSet("Delay ms", aDelay, true, 50, 30000, true);
+      aDelay = valueSet("Delay ms", aDelay, true, (mType == MACRO_TEXT ? 5 : 100), 30000, true);
       break;
     case 3: {
-      if (mType == MACRO_DELAY) insertAct(macro, index, 0x00, MACRO_DELAY, aDelay);
+      if (mType == MACRO_DELAY) {insertAct(macro, index, 0x00, MACRO_DELAY, aDelay); return;}
       if (mType >= MACRO_PRESS && mType <= MACRO_RELEASE) {
         int ckeycode = noidMenu("Change Key", codeToIndex(keycode), buttonName);
         if (ckeycode > 0) keycode = buttonCode[ckeycode - 1];
@@ -2106,12 +2140,12 @@ void addMacroMenu(Macro &macro, int index) {
         while (subSel > 0) {
           String tmp = "";
           for (int i = 0; i < 8; i++) {
-            if (modifier & (1u << i)) tmp += "[*]";
-            else tmp == "[ ]";
+            if (modifier & (1u << i)) tmp += "[*] ";
+            else tmp += "[ ] ";
             tmp += mList[i];
             if (i < 7) tmp += "\n";
           }
-          subSel = noidMenu("Modifier", subSel, tmp.c_str());
+          subSel = noidMenu("Modifier", subSel, tmp.c_str(), true);
           if (subSel > 0) modifier ^= (1 << subSel - 1);
         }
       } else {
@@ -2121,6 +2155,83 @@ void addMacroMenu(Macro &macro, int index) {
     }
     case 5: insertAct(macro, index, keycode, mType, aDelay, modifier); return;
     default: break;
+    }
+  }
+}
+
+void editMacroDelay(Macro &macro, int index) {
+  int sel = 1;
+  unsigned long aDelay = macro.actions[index].actDelay;
+  while (sel > 0) {
+    String tmp = "Delay: " + String(macro.actions[index].actDelay) + "ms"
+    + "\nConfirm";
+    sel = noidMenu("Edit Delay", 1, tmp.c_str());
+    if (sel == 1) aDelay = valueSet("Delay (ms)", aDelay, true, 50, 30000, true);
+    if (sel == 2) macro.actions[index].actDelay = aDelay; return;
+  }
+}
+
+void editMacroPHR(Macro &macro, int index) {
+  int sel = 1;
+  uint8_t keycode = macro.actions[index].keycode;
+  unsigned long aDelay = macro.actions[index].actDelay;
+  uint8_t modifier = macro.actions[index].modifier;
+  String typeShi = "";
+  switch (macro.actions[index].mType) {
+    case MACRO_RELEASE: typeShi = "Release"; break;
+    case MACRO_PRESS:   typeShi = "Press";   break;
+    case MACRO_HOLD:    typeShi = "Hold";    break;
+  }
+  while (sel > 0) {
+    String tmp =
+      "Keycode: " + codeToName(keycode)
+    + "\nModifier: " + modCount(modifier)
+    + "\nDelay: " + aDelay + "ms"
+    + "\nConfirm";
+    sel = noidMenu(("Edit " + typeShi).c_str(), sel, tmp.c_str());
+    switch (sel) {
+      case 1: {
+        int ckeycode = noidMenu("Change Key", codeToIndex(keycode), buttonName);
+        if (ckeycode > 0) keycode = buttonCode[ckeycode - 1];
+        break;
+      }
+      case 2: {
+        int subSel = 1;
+        while (subSel > 0) {
+          String tmp = "";
+          for (int i = 0; i < 8; i++) {
+            if (modifier & (1u << i)) tmp += "[*]";
+            else tmp += "[ ]";
+            tmp += mList[i];
+            if (i < 7) tmp += "\n";
+          }
+          subSel = noidMenu("Modifier", subSel, tmp.c_str(), true);
+          if (subSel > 0) modifier ^= (1 << subSel - 1);
+        }
+        break;
+      }
+      case 3: aDelay = valueSet("Delay (ms)", aDelay, true, 100, 30000, true); break;
+      case 4: editAct(macro, index, keycode, macro.actions[index].mType, aDelay, modifier); return;
+      default: break;
+    }
+  }
+}
+
+void editMacroText(Macro &macro, int index) {
+  String text = String(macro.actions[index].text);
+  unsigned long aDelay = macro.actions[index].actDelay;
+  int sel = 1;
+  while (sel > 0) {
+    String tmp =
+      "Text: " + text
+    + "\nDelay: " + String(aDelay)
+    + "\nConfirm";
+    sel = noidMenu("Edit Text", sel, tmp.c_str());
+    switch (sel) {
+      case 1: text = keyboard(text); break;
+      case 2: aDelay = valueSet("Delay (ms)", aDelay, true, 5, 30000, true);
+      case 3: editTextAct(macro, index, text.c_str(), aDelay); return;
+      default: break;
     }
   }
 }
@@ -2139,7 +2250,8 @@ void macroMenu() {
         "Edit Macro\n"
         "Run Macro\n"
         "Save Macro\n"
-        "Load Macro";
+        "Load Macro\n"
+        "Config";
       int subSel = 1;
       while (subSel > 0) {
         subSel = noidMenu(("Slot " + String(sel)).c_str(), subSel, menu);
@@ -2152,22 +2264,178 @@ void macroMenu() {
               uint8_t mt = mc.actions[i].mType;
               String mtn = "";
               switch (mt) {
-                case MACRO_DELAY  : mtn = "Delay"; break;
-                case MACRO_TEXT   : mtn = "Text"; break;
-                case MACRO_PRESS  : mtn = "Press"; break;
-                case MACRO_HOLD   : mtn = "Hold"; break;
-                case MACRO_RELEASE: mtn = "Release"; break;
+                case MACRO_DELAY  : mtn = "Delay: " + String(mc.actions[i].actDelay) + "ms"; break;
+                case MACRO_TEXT   : mtn = "Text: " + String(mc.actions[i].text); break;
+                case MACRO_PRESS  : mtn = "Press: " + codeToName(mc.actions[i].keycode); break;
+                case MACRO_HOLD   : mtn = "Hold: " + codeToName(mc.actions[i].keycode); break;
+                case MACRO_RELEASE: mtn = "Release: " + codeToName(mc.actions[i].keycode); break;
                 default: mtn = "INVALID"; break;
               }
               tmp += mtn + "\n";
             }
             tmp += "[Add]";
             saw = noidMenu("Edit Macro", saw, tmp.c_str());
-            if (saw - 1 < mc.macCount) {
-              //
+            if (saw > 0 && saw - 1 < mc.macCount) {
+              int subAct = noidMenu("Options", 1, "Edit\nInsert Here\nDelete");
+              switch (subAct) {
+                case 1: {
+                  if (mc.actions[saw - 1].mType == MACRO_DELAY) editMacroDelay(mc, saw - 1);
+                  else if (mc.actions[saw - 1].mType == MACRO_TEXT) editMacroText(mc, saw - 1);
+                  else editMacroPHR(mc, saw - 1);
+                  break;
+                }
+                case 2: addMacroMenu(mc, saw - 1); break;
+                case 3: {
+                  if (u8g2.userInterfaceMessage("Delete this", "action?", "", " Yes \n No ") == 1)
+                    removeAct(mc, saw - 1);
+                  break;
+                }
+                default: break;
+              }
             }
-            else {
+            else if (saw > 0) {
               addMacroMenu(mc, mc.macCount);
+            }
+          }
+          break;
+        }
+        case 2: {
+          screenSaver(("Running Macro " + String(sel)).c_str());
+          if (mc.rep == 0) executeMacro(mc, sel - 1);
+          else if (mc.rep > 0) for (int i = 0; i < mc.rep; i++) executeMacro(mc, sel - 1);
+          break;
+        }
+        case 3: {
+          String mcrName = "New Macro";
+          bool seling = true;
+          while (seling) {
+            const char actions[] =
+              "New File\n"
+              "Replace File"
+            ;
+            int act = noidMenu("Save Macro", 1, actions);
+            if (act == 0) break;
+            if (act == 1) {
+              int opt = -1;
+              while (opt != 0) {
+                opt = u8g2.userInterfaceMessage(
+                  "",
+                  "Save Macro",
+                  mcrName.c_str(),
+                  " ch.Name \n Save "
+                );
+                if (opt == 1) mcrName = keyboard(mcrName);
+                if (opt == 2) {
+                  // remove characters not allowed in filenames
+                  mcrName.replace("/", "-");
+                  mcrName.replace("\\", "-");
+                  mcrName.replace(":", "-");
+                  mcrName.replace("*", "-");
+                  mcrName.replace("?", "-");
+                  mcrName.replace("\"", "-");
+                  mcrName.replace("<", "-");
+                  mcrName.replace(">", "-");
+                  mcrName.replace("|", "-");
+                  mcrName.trim();
+                  if (mcrName.length() == 0) {
+                    u8g2.clearBuffer();
+                    u8g2.drawStr((128 - u8g2.getStrWidth("Invalid name!"))/2, 32, "Invalid name!");
+                    u8g2.sendBuffer();
+                    delay(1000);
+                  }
+                  else {
+                    if (!mcrName.endsWith(".mcr")) mcrName += ".mcr";
+                    mcrName = "/" + mcrName;
+                    if (saveMacro(mcrName.c_str(), mc)) {
+                      u8g2.userInterfaceMessage("Macro saved!", mcrName.c_str(), "", " Ok ");
+                      seling = false;
+                      opt = 0;
+                    } else {
+                      u8g2.userInterfaceMessage("Failed to save", mcrName.c_str(), "go back and try again", " Ok ");
+                    }
+                  }
+                }
+              }
+            }
+            if (act == 2) {
+              std::vector<String> macros = listMacro();
+              int macrosCount = macros.size();
+              if (macrosCount) {
+                String subSel = "";
+                for (int i = 0; i < macrosCount; i++) {
+                  subSel += macros[i];
+                  if (i < macrosCount - 1) subSel += "\n";
+                }
+                int choose = noidMenu("Replace Macro", 1, subSel.c_str());
+                if (choose != 0) {
+                  mcrName = "/" + macros[choose - 1];
+                  if (saveMacro(mcrName.c_str(), mc)) {
+                    u8g2.userInterfaceMessage("Macro saved!", mcrName.c_str(), "", " Ok ");
+                    seling = false;
+                  } else {
+                    u8g2.userInterfaceMessage("Failed to save", mcrName.c_str(), "", " Ok ");
+                  }
+                }
+              } else {
+                u8g2.userInterfaceMessage("Sorry but you haven't", "save any Macro yet", "", " Ok ");
+              }
+            }
+          }         
+          break;
+        }
+        case 4: {
+          std::vector<String> macros = listMacro();
+          int macrosCount = macros.size();
+          if (macrosCount) {
+            String subSel = "";
+            for (int i = 0; i < macrosCount; i++) {
+              subSel += macros[i];
+              if (i < macrosCount - 1) subSel += "\n";
+            }
+            int choose = noidMenu("Load Macro", 0, subSel.c_str());
+            if (choose != 0) {
+              String mcrName = "/" + macros[choose - 1];
+              if (loadMacro(mcrName.c_str(), mc)) {
+                u8g2.userInterfaceMessage("Macro loaded!", mcrName.c_str(), "", " Ok ");
+              } else {
+                u8g2.userInterfaceMessage("Failed to load", mcrName.c_str(), "", " Ok ");
+              }
+            }
+          } else {
+            u8g2.userInterfaceMessage("Sorry but you haven't", "save any macro yet", "", " Ok ");
+          }
+          break;
+        }
+        case 5: {
+          int sSel = 1;
+          while (sSel > 0) {
+            String tmp = 
+              "Repeat: " + (mc.rep >= 0 ? String(mc.rep) : "until release")
+            + "\nRelease to stop: " + (mc.iTr ? "Yes" : "No")
+            + "\nQuick Path: " + String(prf.macPath[sel - 1])
+            ;
+            sSel = noidMenu("Macro Config", sSel, tmp.c_str());
+            switch (sSel) {
+            case 1: mc.rep = valueSet("Repeat", mc.rep, true, -1, 100, true); break;
+            case 2: mc.iTr = !mc.iTr; break;
+            case 3: {
+              std::vector<String> macros = listMacro();
+              int macrosCount = macros.size();
+              if (macrosCount) {
+                String subSel = "";
+                for (int i = 0; i < macrosCount; i++) {
+                  subSel += macros[i];
+                  if (i < macrosCount - 1) subSel += "\n";
+                }
+                int choose = noidMenu("Load Macro", 0, subSel.c_str());
+                if (choose != 0) {
+                  String mcrName = "/" + macros[choose - 1];
+                  strncpy(prf.macPath[sel - 1], mcrName.c_str(), sizeof(prf.macPath[sel - 1]) - 1);
+                }
+              }
+              break;
+            }
+            default: break;
             }
           }
           break;

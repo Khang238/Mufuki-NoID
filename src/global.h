@@ -93,6 +93,7 @@ extern int maxBri;
 extern uint32_t lastDecTime;
 extern uint8_t mode;
 extern uint8_t ledOutput[3];
+extern bool morseKey;
 
 // extern bool underGlow;
 extern bool applyEffect[3];
@@ -101,7 +102,7 @@ extern unsigned long lastUpdate;
 extern int updateInterval;
 
 extern bool alwaysReport;
-extern int layoutType;
+// extern int layoutType;
 extern uint32_t LOOP_INTERVAL_US;
 extern uint32_t lastLoopTime;
 extern bool fromMenu;

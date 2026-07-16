@@ -1,7 +1,7 @@
 #include "global.h"
 #include "profile.h"
 
-const String ver = "v2.7.0";
+const String ver = "v2.8.4";
 bool firstTime = false;
 
 int  usbMode = 0;
@@ -56,6 +56,7 @@ int maxBri = 16;
 uint32_t lastDecTime = 0;
 uint8_t mode = 0;
 uint8_t ledOutput[3] = { 0,0,0 };
+bool morseKey = false;
 
 // bool underGlow = false;
 bool applyEffect[3] = {false, false, false};
@@ -65,7 +66,7 @@ unsigned long lastUpdate = 0;
 
 // Conectivity & Layouts
 bool alwaysReport = false;
-int layoutType = 0;
+// int layoutType = 0;
 uint32_t LOOP_INTERVAL_US = 1000; // 1ms = 1000Hz
 uint32_t lastLoopTime = 0;
 bool fromMenu = false;

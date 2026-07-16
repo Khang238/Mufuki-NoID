@@ -6,6 +6,7 @@
 #include "bledev.h"
 #include "cdc.h"
 #include "visplayer.h"
+#include "macro.h"
 
 bool lastWifiState = false;
 int AODcorner = 0;
@@ -21,7 +22,7 @@ int max(int a, int b) {
 void mainMenu() {
   const char kmenu_items[] =
     "Hall Settings\n"
-    "Layout\n"
+    "Layout & Macro\n"
     "Effects\n"
     "Connection\n"
     "Profile\n"
@@ -75,7 +76,21 @@ void mainMenu() {
           }
         }
       } break;
-      case 2: if (usbMode == 0) layoutChangeMenu(); else editMapping(prf); break;
+      case 2: {
+        if (usbMode == 0) {
+          int sMenu = 1;
+          while (sMenu > 0) {
+            sMenu = noidMenu("Layout & Macro", sMenu, "Layout\nMacro");
+            switch (sMenu) {
+              case 1: layoutChangeMenu(); break;
+              case 2: macroMenu();
+              default: break;
+            }
+          }
+        }
+        else editMapping(prf);
+        break;
+      }
       case 3: effectMenu(); break;
       case 4: connectMenu(); break;
       case 5: profileMenu(); break;
@@ -130,6 +145,25 @@ void displayTask(void* param) {
     if (micros() - lastCDC >= 10000) {
       handleCDC(); lastCDC = micros();
       if (usbMode != 0) mpu.update();
+    }
+
+    for (int i = 0; i < 3; i++) {
+      int mcs = prf.launchMacro[i];
+      if (mcs >= 0 && getButton(true) == i) {
+        menuOpen = true;
+        u8g2.setPowerSave(0);
+        screenSaver(("Running Macro " + String(mcs + 1)).c_str());
+        if (macQuick[mcs].rep == -1) {
+          while (getButton(true) > 0)
+            executeMacro(macQuick[mcs], i);
+        } else if (macQuick[mcs].rep == 0) executeMacro(macQuick[mcs], i);
+        else for (int n = 0; n < macQuick[mcs].rep; n++)
+          executeMacro(macQuick[mcs], i);
+        menuOpen = false;
+        waitIDLE = millis();
+        screenWait = false;
+        screenOff = false;
+      }
     }
 
     // F4 Key (Menu)
