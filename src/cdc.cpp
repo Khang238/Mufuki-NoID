@@ -78,7 +78,7 @@ static void processCommand(const String& raw) {
     data["so"] = prf.screenOffDuration;
     data["lg"] = prf.logoType;
     data["sl"] = prf.screenLogo;
-    data["ug"] = prf.underGlow;
+    data["ug"] = prf.backlight;
     data["gt"] = prf.glowType;
     data["rl"] = prf.rgb;
     data["rb"] = prf.rgbBri;
@@ -130,7 +130,7 @@ static void processCommand(const String& raw) {
     prf.screenSaveDuration = data["ss"] | prf.screenSaveDuration;
     prf.screenOffDuration  = data["so"] | prf.screenOffDuration;
     prf.logoType       = data["lg"] | prf.logoType;
-    prf.underGlow      = data["ug"] | prf.underGlow;
+    prf.backlight      = data["ug"] | prf.backlight;
     prf.glowType       = data["gt"] | prf.glowType;
     prf.rgb            = data["rl"] | prf.rgb;
     prf.rgbBri         = data["rb"] | prf.rgbBri;

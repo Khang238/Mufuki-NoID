@@ -248,7 +248,7 @@ void displayTask(void* param) {
     }
 
     // Effects
-    if (prf.underGlow) {
+    if (prf.backlight) {
       switch (prf.glowType) {
         case 0:
           for (int i = 0; i < 3; i++) {

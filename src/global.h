@@ -95,7 +95,7 @@ extern uint8_t mode;
 extern uint8_t ledOutput[3];
 extern bool morseKey;
 
-// extern bool underGlow;
+// extern bool backlight;
 extern bool applyEffect[3];
 extern unsigned long lastRGBUpdate;
 extern unsigned long lastUpdate;

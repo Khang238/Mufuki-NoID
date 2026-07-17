@@ -800,7 +800,7 @@ void effectMenu() {
   while (sel != 0) {
     globFont();
     String menu_items =
-      "Under Glow " + String(prf.underGlow ? "[On]" : "[Off]") + "\n"
+      "Backlight " + String(prf.backlight ? "[On]" : "[Off]") + "\n"
       + "RGB Led " + String(prf.rgb ? "[On]" : "[Off]");
     sel = noidMenu("Effects", sel, menu_items.c_str());
     if (sel == 1) {
@@ -815,14 +815,14 @@ void effectMenu() {
       };
       while (subSel != 0) {
         String tmp =
-        "Under Glow: " + String(prf.underGlow ? "[On]" : "[Off]") + "\n"
+        "Backlight: " + String(prf.backlight ? "[On]" : "[Off]") + "\n"
         + "Type: " + effectsList[prf.glowType] + "\n";
         for (int i = 0; i < 6; i++) {
           tmp += (prf.glowType == i ? "> " : "") + effectsList[i] + (prf.glowType == i ? " <" : "");
           if (i < 5) tmp += "\n";
         }
-        subSel = noidMenu("Under Glow", subSel, tmp.c_str(), true);
-        if (subSel == 1) prf.underGlow = !prf.underGlow;
+        subSel = noidMenu("Backlight", subSel, tmp.c_str(), true);
+        if (subSel == 1) prf.backlight = !prf.backlight;
         else if (subSel >= 3 && subSel <= 8) prf.glowType = subSel - 3;
       }
     } else if (sel == 2) {

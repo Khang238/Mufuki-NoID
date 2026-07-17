@@ -89,7 +89,7 @@ void updateRipple() {
 }
 
 void underGlowUpdate() {
-  if (!prf.underGlow) return;
+  if (!prf.backlight) return;
   if (analogLed) for (int i = 0; i < 3; i++) ledcWrite(i, ledOutput[i]);
   else {
     for (int i = 0; i < 3; i++) b.setPixelColor(i, b.Color((prf.color[0] * ledOutput[i] * 255) / (255 * maxBri), (prf.color[1] * ledOutput[i] * 255) / (255 * maxBri), (prf.color[2] * ledOutput[i] * 255) / (255 * maxBri)));

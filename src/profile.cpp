@@ -36,7 +36,7 @@ void unpackProfile(Profile& p) {
   // keyTravel = p.keyTravel;
 
   // Effects
-  // underGlow = p.underGlow;
+  // backlight = p.backlight;
   // glowType = p.glowType;
   // rgb = p.rgb;
   // rgbBri = p.rgbBri;
@@ -78,7 +78,7 @@ void packProfile(Profile& p) {
   // p.keyTravel = keyTravel;
 
   // Effects
-  // p.underGlow = underGlow;
+  // p.backlight = backlight;
   // p.glowType = glowType;
   // p.rgb = rgb;
   // p.rgbBri = rgbBri;
@@ -139,7 +139,7 @@ bool saveProfile(const char* path, Profile& p) {
   doc["gmt"] = p.GMTPlus;
 
   // Effects
-  doc["ug"] = p.underGlow;
+  doc["ug"] = p.backlight;
   doc["gt"] = p.glowType;
   doc["rl"] = p.rgb;
   doc["rb"] = p.rgbBri;
@@ -234,7 +234,7 @@ bool loadProfile(const char* path, Profile& p) {
     strncpy(p.screenLogo, doc["sl"].as<const char*>(), sizeof(p.screenLogo) - 1);
 
   // Effects
-  p.underGlow  = doc["ug"] | p.underGlow;
+  p.backlight  = doc["ug"] | p.backlight;
   p.glowType   = doc["gt"] | p.glowType;
   p.rgb        = doc["rl"] | p.rgb;
   p.rgbBri     = doc["rb"] | p.rgbBri;

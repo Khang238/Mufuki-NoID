@@ -103,7 +103,7 @@ struct Profile {
   int           GMTPlus = 0;
 
   // Effects
-  bool    underGlow = false;
+  bool    backlight = false;
   uint8_t glowType = 0;
   bool    rgb = false;
   uint8_t rgbBri = 255;

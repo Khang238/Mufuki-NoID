@@ -58,7 +58,7 @@ uint8_t mode = 0;
 uint8_t ledOutput[3] = { 0,0,0 };
 bool morseKey = false;
 
-// bool underGlow = false;
+// bool backlight = false;
 bool applyEffect[3] = {false, false, false};
 int updateInterval = 32;
 unsigned long lastRGBUpdate = 0;

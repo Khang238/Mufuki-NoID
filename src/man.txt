@@ -45,7 +45,7 @@ bool loadConfig(const char *path = "/default.json") {
 
   if (doc.containsKey("rL")) {rgb = doc["rL"].as<bool>;}
   if (doc.containsKey("dF")) {doFilter = doc["dF"].as<bool>;}
-  if (doc.containsKey("uG")) {underGlow = doc["uG"].as<bool>;}
+  if (doc.containsKey("uG")) {backlight = doc["uG"].as<bool>;}
   if (doc.containsKey("dR")) {doRainbow = doc["dR"].as<bool>;}
 
   if (doc.containsKey("aT")) {float data = doc["aT"].as<float>; actuation = (data > 0.0f && data < 1.0f) ? data | actuation;}
