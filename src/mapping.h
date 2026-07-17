@@ -72,16 +72,19 @@ struct Profile {
 
   // Input
   uint8_t inputHandler = 0;
-  float   actuation = 0.3;
-  float   windowSize = 0.3;
-  float   upperThreshold = 0.6;
-  float   lowerThreshold = 0.4;
+  float   actuation = 0.3f;
+  float   windowSize = 0.3f;
+  float   upperThreshold = 0.6f;
+  float   lowerThreshold = 0.4f;
+  float   ascend = 0.3f;
+  float   descend = 0.3f;
+  float   footDeadZone = 0.02f;
   float   calMax[3] = {2200, 2200, 2200};
   float   calMin[3] = {2000, 2000, 2000};
   int     deadZone[3] = {16, 16, 16};
   bool    doFilter = false;
   int     ovsSamples = 16;
-  float   emaAlpha = 0.05;
+  float   emaAlpha = 0.05f;
   uint8_t filterType = 0;
   int layoutType = 0;
   uint8_t layout[6] = {HID_KEY_Z, HID_KEY_X, HID_KEY_C, HID_KEY_ESCAPE, HID_KEY_F1, HID_KEY_F2};
@@ -93,8 +96,8 @@ struct Profile {
   unsigned long screenOffDuration = 10000;
   int           logoType = 0;
   char          screenLogo[32] = "Mufuki";
-  bool          hallDisplayAsKT = true;
-  float         keyTravel = 4.5;
+  bool          asMm = true;
+  float         keyTravel = 4.50;
   bool          AOD = false;
   bool          AODAntiBurnIn = true;
   int           GMTPlus = 0;

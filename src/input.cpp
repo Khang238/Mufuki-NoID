@@ -23,7 +23,7 @@ void readHall(int i) {
   hallVal[i] = constrain(
     (float)(rawVal[i] - prf.calMin[i] - prf.deadZone[i]) /
     (float)(prf.calMax[i] - prf.calMin[i] - 2 * prf.deadZone[i]),
-    0.00, 1.00
+    0.00f, 1.00f
   );
 }
 
@@ -87,11 +87,56 @@ void inputTypeDynamicActuation() {
   }
 }
 
+float lastHall[3] = {0.00, 0.00, 0.00};
+void inputTypeVector() {
+  for (int i = 0; i < 6; i++) {
+    if (i < 3) {
+      readHall(i);
+      if (!nowPress[i]) {
+        if (hallVal[i] < windowFoot[i]) {
+          windowFoot[i] = hallVal[i]; 
+        }
+        if (hallVal[i] > windowFoot[i] + prf.ascend) {
+          nowPress[i] = true;
+          windowFoot[i] = hallVal[i];
+        }
+      } else {
+        if (hallVal[i] > windowFoot[i]) {
+          windowFoot[i] = hallVal[i];
+        }
+        if (hallVal[i] < windowFoot[i] - prf.descend) {
+          nowPress[i] = false;
+          windowFoot[i] = hallVal[i];
+        }
+      }
+      if (hallVal[i] <= 0.00) {
+        nowPress[i] = false;
+        windowFoot[i] = 0.0;
+      }
+      if (hallVal[i] >= 1.00) {
+        nowPress[i] = true;
+        windowFoot[i] = 1.00;
+      }
+      if (nowPress[i] && !lastPress[i]) {
+        applyEffect[i] = true;
+      }
+      lastHall[i] = hallVal[i];
+    } else {
+      nowPress[i] = !digitalRead(btnPins[i - 3]);
+    }
+    if (nowPress[i] != lastPress[i]) {
+      needReport = true;
+    }
+    lastPress[i] = nowPress[i];
+  }
+}
+
 void updateInput() {
   switch (prf.inputHandler) {
     case 0: inputTypeDigitalEmulation(); break;
     case 1: inputTypeHysteresisHandling(); break;
     case 2: inputTypeDynamicActuation(); break;
+    case 3: inputTypeVector(); break;
     default: inputTypeDigitalEmulation(); break;
   }
 }
@@ -487,11 +532,13 @@ void keypadMUI() {
     case 0: tmp = "DEM" ; break;
     case 1: tmp = "HSR"  ; break;
     case 2: tmp = "DAC"  ; break;
+    case 3: tmp = "VEC"  ; break;
   }
   u8g2.drawStr(96 - u8g2.getStrWidth(tmp.c_str()) / 2, 30, tmp.c_str());
 
-  if (prf.inputHandler == 1) tmp = "Act: +" + String(prf.upperThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2) + " -" + String(prf.lowerThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2);
-  else                   tmp = "Act: " + String(prf.inputHandler == 0 ? prf.actuation * (prf.hallDisplayAsKT ? prf.keyTravel : 1) : prf.windowSize * (prf.hallDisplayAsKT ? prf.keyTravel : 1), 2) +  (prf.hallDisplayAsKT ? "mm" : "");
+  if (prf.inputHandler == 1) tmp = "Act: +" + String(prf.upperThreshold * (prf.asMm ? prf.keyTravel : 1), 2) + " -" + String(prf.lowerThreshold * (prf.asMm ? prf.keyTravel : 1), 2);
+  else if (prf.inputHandler == 3) tmp = "Act: +" + String(prf.ascend * (prf.asMm ? prf.keyTravel : 1), 2) + " -" + String(prf.descend * (prf.asMm ? prf.keyTravel : 1), 2);
+  else tmp = "Act: " + String(prf.inputHandler == 0 ? prf.actuation * (prf.asMm ? prf.keyTravel : 1) : prf.windowSize * (prf.asMm ? prf.keyTravel : 1), 2) +  (prf.asMm ? "mm" : "");
   // if (withBLE && !kblue->isConnected()) u8g2.drawStr(64 - u8g2.getStrWidth("Not Connected") / 2, 48, "Not Connected");
   // else u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
   u8g2.drawStr(64 - u8g2.getStrWidth(tmp.c_str()) / 2, 48, tmp.c_str());
@@ -503,7 +550,7 @@ void keypadMUI() {
     u8g2.drawFrame(43 * i - 1, 55, 44, 10);
     u8g2.drawBox(43 * i, 55, (int)(hallVal[i] * 43), 10);
     u8g2.setDrawColor(2);
-    String line = prf.hallDisplayAsKT ? (String(hallVal[i] * prf.keyTravel, 1) + "mm") : String(hallVal[i], 2);
+    String line = prf.asMm ? (String(hallVal[i] * prf.keyTravel, 1) + "mm") : String(hallVal[i], 2);
     u8g2.drawStr(1 + 43 * i, 63, line.c_str());
     u8g2.setDrawColor(1);
     //maxPress = max(maxPress, hallVal[i]);

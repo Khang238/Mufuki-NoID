@@ -478,6 +478,9 @@ void calibMenu() {
           u8g2.drawLine(40, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14);
           u8g2.drawLine(40, (int)((1.0 - (windowFoot[nowCal] + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (windowFoot[nowCal] + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
           break;
+        case 3:
+          u8g2.drawLine(40, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - windowFoot[nowCal]) * (GRAPH_HEIGHT - 1)) + 14);
+          break;
         default: break;
       }
     u8g2.sendBuffer();
@@ -490,6 +493,52 @@ void calibMenu() {
     else b.setPixelColor(i, b.Color(0, 0, 0));
   }
   if (!analogLed) b.show();
+}
+
+void inputHandlerSetting() {
+  int sel = 1;
+  float mul =  (prf.asMm ? prf.keyTravel : 1.00f);
+  float cMin = mul * 0.01;
+  float cMax = mul * 1.00;
+  String unit = (prf.asMm ? "mm" : "");
+  globFont();
+  while (sel > 0) {
+    String tmp = "";
+    switch (prf.inputHandler) {
+      case 0: tmp = "Actuation: " + String(prf.actuation * mul) + unit; break;
+      case 1: tmp = "Activate: " + String(prf.upperThreshold * mul) + unit + "\n"
+                  + "Deactivate: " + String(prf.lowerThreshold * mul) + unit; break;
+      case 2: tmp = "Actuation: " + String(prf.windowSize * mul) + unit; break;
+      case 3: tmp = "Pull: " + String(prf.descend * mul) + unit + "\n"
+                  + "Push: " + String(prf.ascend* mul) + unit + "\n"
+                  + "Deadzone: " + String(prf.footDeadZone); break;
+      default: return;
+    }
+    sel = noidMenu("Setting", sel, tmp.c_str());
+    if (sel == 1) {
+      switch (prf.inputHandler) {
+        case 0: prf.actuation      = valueSet("Actuation",     prf.actuation * mul, true, cMin, cMax) / mul; break;
+        case 1: prf.upperThreshold = valueSet("Activate", prf.upperThreshold * mul, true, cMin, cMax) / mul; break;
+        case 2: prf.windowSize     = valueSet("Actuation",    prf.windowSize * mul, true, cMin, cMax) / mul; break;
+        case 3: prf.descend        = valueSet("Pull",            prf.descend * mul, true, cMin, cMax) / mul; break;
+        default: break;
+      }
+    }
+    if (sel == 2) {
+      switch (prf.inputHandler) {
+        case 1: prf.lowerThreshold = valueSet("Deactivate", prf.lowerThreshold * mul, true, cMin, cMax) / mul; break;
+        case 3: prf.ascend        = valueSet("Push", prf.ascend                * mul, true, cMin, cMax) / mul; break;
+        default: break;
+      }
+    }
+    if (sel == 3) prf.footDeadZone = valueSet("Deadzone", prf.footDeadZone, true, 0.00, 0.50);
+  }
+  if (prf.lowerThreshold > prf.upperThreshold) {
+    float tmpf = prf.lowerThreshold;
+    prf.lowerThreshold = prf.upperThreshold;
+    prf.upperThreshold = tmpf;
+    u8g2.userInterfaceMessage("Noicte!", "Act < Deact", "Value auto swapped", " Ok ");
+  }
 }
 
 void inputMenu() {
@@ -509,18 +558,18 @@ void inputMenu() {
     globFont();
     switch (prf.inputHandler) {
       case 0:
-      inputTypeDigitalEmulation();
+        // inputTypeDigitalEmulation();
         u8g2.drawStr(0, 12, "DigitalEmulation");
         u8g2.drawStr(0, 24, "Acc:");
-        u8g2.drawStr(0, 36, (prf.hallDisplayAsKT ? String(prf.actuation * prf.keyTravel, 2) + "mm" : String(prf.actuation)).c_str());
+        u8g2.drawStr(0, 36, (prf.asMm ? String(prf.actuation * prf.keyTravel, 2) + "mm" : String(prf.actuation)).c_str());
         u8g2.drawLine(40, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.actuation) * (GRAPH_HEIGHT - 1)) + 14);
         break;
       case 1:
-        inputTypeHysteresisHandling();
+        // inputTypeHysteresisHandling();
         u8g2.drawStr(0, 12, "Hysteresis");
-        u8g2.drawStr(0, 24, ("U: " + String(prf.upperThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
-        u8g2.drawStr(0, 36, ("L: " + String(prf.lowerThreshold * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
-        if (prf.hallDisplayAsKT) u8g2.drawStr(0, 48, "mm");
+        u8g2.drawStr(0, 24, ("A: " + String(prf.upperThreshold * (prf.asMm ? prf.keyTravel : 1))).c_str());
+        u8g2.drawStr(0, 36, ("D: " + String(prf.lowerThreshold * (prf.asMm ? prf.keyTravel : 1))).c_str());
+        if (prf.asMm) u8g2.drawStr(0, 48, "mm");
         u8g2.drawLine(40, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.upperThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         u8g2.drawLine(40, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - prf.lowerThreshold) * (GRAPH_HEIGHT - 1)) + 14);
         if (hysteresisChange == 0) {
@@ -530,91 +579,37 @@ void inputMenu() {
         }
         break;
       case 2:
-        inputTypeDynamicActuation();
+        // inputTypeDynamicActuation();
         u8g2.drawStr(0, 12, "DynamicAct");
-        u8g2.drawStr(0, 24, ("W: " + String(prf.windowSize * (prf.hallDisplayAsKT ? prf.keyTravel : 1))).c_str());
-        if (prf.hallDisplayAsKT) u8g2.drawStr(0, 36, "mm");
+        u8g2.drawStr(0, 24, ("W:" + String(prf.windowSize * (prf.asMm ? prf.keyTravel : 1))).c_str());
+        if (prf.asMm) u8g2.drawStr(0, 36, "mm");
         u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128  , (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
         u8g2.drawLine(40, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
         break;
+      case 3:
+        u8g2.drawStr(0, 12, "Vector");
+        u8g2.drawStr(0, 24, ("V +" + String(prf.ascend * (prf.asMm ? prf.keyTravel : 1))).c_str());
+        u8g2.drawStr(0, 36, ("V -" + String(prf.descend * (prf.asMm ? prf.keyTravel : 1))).c_str());
+        if (prf.asMm) u8g2.drawStr(0, 48, "mm");
+        u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
+        break;
       default:
-        inputTypeDigitalEmulation();
+        // inputTypeDigitalEmulation();
         break;
     }
     u8g2.setFont(u8g2_font_5x8_tr);
     u8g2.drawStr(108, 12, String(maxPress).c_str());
-    switch (prf.inputHandler) {
-      case 0:
-        u8g2.drawStr(0, 56, "F1: Acc+    F2: Change M"); // not enough space
-        u8g2.drawStr(0, 64, "F3: Acc-    F4: Exit");
-        break;
-      case 1:
-        if (!hysteresisChanging) {
-          u8g2.drawStr(0, 56, "F1: Next    F2: Change M");
-          u8g2.drawStr(0, 64, "F3: Change  F4: Exit");
-        }
-        else if (hysteresisChange == 0) {
-          u8g2.drawStr(0, 56, "F1: U+      F2: Done");
-          u8g2.drawStr(0, 64, "F3: U-      F4: Exit");
-        }
-        else if (hysteresisChange == 1) {
-          u8g2.drawStr(0, 56, "F1: L+      F2: Done");
-          u8g2.drawStr(0, 64, "F3: L-      F4: Exit");
-        }
-        break;
-      case 2:
-        u8g2.drawStr(0, 56, "F1: Ws+     F2: Change M");
-        u8g2.drawStr(0, 64, "F3: Ws-     F4: Exit");
-        break;
-    }
+    u8g2.drawStr(0, 56, "F1: Next    F2: Settings");
+    u8g2.drawStr(0, 64, "F3: Prev    F4: Exit");
     switch (getButton()) {
       case 0:
-        if (prf.inputHandler == 0) {
-          prf.actuation += 0.05;
-          prf.actuation = constrain(prf.actuation, 0.05, 0.95);
-        } else if (prf.inputHandler == 1) {
-          if (!hysteresisChanging) {
-            hysteresisChange = (hysteresisChange + 1) % 2;
-          }
-          else if (hysteresisChange == 0) {
-            prf.upperThreshold += 0.05;
-            prf.upperThreshold = constrain(prf.upperThreshold, prf.lowerThreshold + 0.05, 0.95);
-          }
-          else if (hysteresisChange == 1) {
-            prf.lowerThreshold += 0.05;
-            prf.lowerThreshold = constrain(prf.lowerThreshold, 0.05, prf.upperThreshold - 0.05);
-          }
-        } else if (prf.inputHandler == 2) {
-          prf.windowSize += 0.05;
-          prf.windowSize = constrain(prf.windowSize, 0.05, 1.00);
-        }
+        prf.inputHandler = (prf.inputHandler + 3) % 4;
         break;
       case 1:
-        if (!(hysteresisChanging && prf.inputHandler == 1))
-          prf.inputHandler = (prf.inputHandler + 1) % 3;
-        else
-          hysteresisChanging = false;
+        inputHandlerSetting();
         break;
       case 2:
-        if (prf.inputHandler == 0) {
-          prf.actuation -= 0.05;
-          prf.actuation = constrain(prf.actuation, 0.05, 0.95);
-        } else if (prf.inputHandler == 1) {
-          if (!hysteresisChanging) {
-            hysteresisChanging = true;
-          }
-          else if (hysteresisChange == 0) {
-            prf.upperThreshold -= 0.05;
-            prf.upperThreshold = constrain(prf.upperThreshold, prf.lowerThreshold + 0.05, 0.95);
-          }
-          else if (hysteresisChange == 1) {
-            prf.lowerThreshold -= 0.05;
-            prf.lowerThreshold = constrain(prf.lowerThreshold, 0.05, prf.upperThreshold - 0.05);
-          }
-        } else if (prf.inputHandler == 2) {
-          prf.windowSize -= 0.05;
-          prf.windowSize = constrain(prf.windowSize, 0.05, 1.00);
-        }
+        prf.inputHandler = (prf.inputHandler + 1) % 4;
         break;
       case 3:
         running = false;
@@ -791,6 +786,9 @@ void filtMenu() {
           u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
           u8g2.drawLine(40, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - (maxFoot + prf.windowSize)) * (GRAPH_HEIGHT - 1)) + 14);
           break;
+        case 3:
+          u8g2.drawLine(40, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14, 128, (int)((1.0 - maxFoot) * (GRAPH_HEIGHT - 1)) + 14);
+          break;
         default: break;
       }
     u8g2.sendBuffer();
@@ -857,9 +855,9 @@ void effectMenu() {
                 + "G: " + String(prf.color[1]) + "\n"
                 + "B: " + String(prf.color[2]);
               sub2Sel = noidMenu("Color\n", sub2Sel, colorElements.c_str());
-              if (sub2Sel == 1) prf.color[0] = (uint8_t)valueSet("Red", prf.color[0], true, 0, 255);
-              else if (sub2Sel == 2) prf.color[1] = (uint8_t)valueSet("Blue", prf.color[1], true, 0, 255);
-              else if (sub2Sel == 3) prf.color[2] = (uint8_t)valueSet("Green", prf.color[2], true, 0, 255);
+              if (sub2Sel == 1) prf.color[0] = (uint8_t)valueSet("Red", prf.color[0], true, 0, 255, true);
+              else if (sub2Sel == 2) prf.color[1] = (uint8_t)valueSet("Green", prf.color[1], true, 0, 255, true);
+              else if (sub2Sel == 3) prf.color[2] = (uint8_t)valueSet("Blue", prf.color[2], true, 0, 255, true);
             }
           }
         }
@@ -905,11 +903,11 @@ void displaySetting() {
       menuItem += "Icon: \"" + String(prf.screenLogo) + "\"";
     else
       menuItem += "Icon: \"" + String(kaoOrSomethingIdk[prf.logoType - 1]) + "\"";
-    menuItem += "\nHall Value: " + (String)(prf.hallDisplayAsKT ? "mm" : "Normalized");
+    menuItem += "\nHall Value: " + (String)(prf.asMm ? "mm" : "Normalized");
     menuItem += "\nKey travel: " + String(prf.keyTravel, 2) + "mm";
     menuItem += "\nMain Screen";
     menuItem += "\nAlways On Display";
-    subSel = noidMenu("Display", subSel, menuItem.c_str());
+    subSel = noidMenu("Display", subSel, menuItem.c_str(), true);
     if (subSel == 1) {prf.screenBri = (uint8_t)valueSet("Brightness", prf.screenBri, true, 0, 255); u8g2.setContrast(prf.screenBri);}
     if (subSel == 2) {
       switch (noidMenu("Screen on", 1, lazyAss)) {
@@ -953,7 +951,7 @@ void displaySetting() {
         prf.logoType = 12;
       }
     }
-    if (subSel == 5) prf.hallDisplayAsKT = !prf.hallDisplayAsKT;
+    if (subSel == 5) prf.asMm = !prf.asMm;
     if (subSel == 6) {
       prf.keyTravel = valueSet("Key Travel (mm):", prf.keyTravel, true, 0.1, 1000);
       if (prf.keyTravel > 100)  u8g2.userInterfaceMessage("Damn", "da loooong way", "", " ok ");
@@ -1625,6 +1623,7 @@ void systemMenu() {
   }
   if (ls != morseKey) {
     int opt = u8g2.userInterfaceMessage("Save keyboard", "type to system?", "", " Yes \n No ");
+    if (opt > 0) morseKey = ls;
     if (opt == 1) sysSave();
   }
 }
@@ -2276,7 +2275,7 @@ void macroMenu() {
             tmp += "[Add]";
             saw = noidMenu("Edit Macro", saw, tmp.c_str());
             if (saw > 0 && saw - 1 < mc.macCount) {
-              int subAct = noidMenu("Options", 1, "Edit\nInsert Here\nDelete");
+              int subAct = noidMenu("Options", 1, "Edit\nInsert Here\nClear Macro\nDelete");
               switch (subAct) {
                 case 1: {
                   if (mc.actions[saw - 1].mType == MACRO_DELAY) editMacroDelay(mc, saw - 1);
@@ -2286,10 +2285,13 @@ void macroMenu() {
                 }
                 case 2: addMacroMenu(mc, saw - 1); break;
                 case 3: {
-                  if (u8g2.userInterfaceMessage("Delete this", "action?", "", " Yes \n No ") == 1)
-                    removeAct(mc, saw - 1);
+                  if (u8g2.userInterfaceMessage("Clear Macro?", "This action", "can't be undone!", " Yes \n No ") == 1) {
+                    Macro newMac;
+                    mc = newMac;
+                  }
                   break;
                 }
+                case 4: removeAct(mc, saw - 1); break;
                 default: break;
               }
             }

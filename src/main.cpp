@@ -172,7 +172,7 @@ void displayTask(void* param) {
         bt4Hold = true;
         bt4time = millis();
       }
-      if (millis() - bt4time > 1000 && bt4Hold) {
+      if (millis() - bt4time > 500 && bt4Hold) {
         menuOpen = true;
         mainMenu();
         waitIDLE = millis();
@@ -194,14 +194,14 @@ void displayTask(void* param) {
           screenOff = false;
         }
       }
-      if (bt4Hold && 500 < millis() - bt4time && millis() - bt4time < 1000 && tud_ready()) {
+      if (bt4Hold && 300 < millis() - bt4time && millis() - bt4time < 500 && usbMode != 0) {
         u8g2.clearBuffer();
         const char *tmp = "Calibrating...";
         u8g2.drawStr(64 - u8g2.getStrWidth(tmp) / 2, 32 - u8g2.getMaxCharHeight() / 2, tmp);
         u8g2.sendBuffer();
         mpu.calcOffsets();
       } 
-      if (300 < millis() - bt4time && millis() - bt4time < 500 && bt4Hold) {
+      if (usbMode == 0 && 300 < millis() - bt4time && millis() - bt4time < 500 && bt4Hold && tud_ready()) {
         u8g2.setPowerSave(0);
         menuOpen = true;
         String text = keyboard("");

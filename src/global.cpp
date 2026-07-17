@@ -1,7 +1,7 @@
 #include "global.h"
 #include "profile.h"
 
-const String ver = "v2.8.4";
+const String ver = "v2.8.6";
 bool firstTime = false;
 
 int  usbMode = 0;

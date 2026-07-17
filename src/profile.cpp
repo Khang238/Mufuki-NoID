@@ -32,7 +32,7 @@ void unpackProfile(Profile& p) {
   // screenOffDuration = p.screenOffDuration;
   // logoType = p.logoType;
   // screenLogo = String(p.screenLogo);
-  // hallDisplayAsKT = p.hallDisplayAsKT;
+  // asMm = p.asMm;
   // keyTravel = p.keyTravel;
 
   // Effects
@@ -74,7 +74,7 @@ void packProfile(Profile& p) {
   // p.screenOffDuration = screenOffDuration;
   // p.logoType = logoType;
   // strncpy(p.screenLogo, screenLogo.c_str(), sizeof(p.screenLogo) - 1);
-  // p.hallDisplayAsKT = hallDisplayAsKT;
+  // p.asMm = asMm;
   // p.keyTravel = keyTravel;
 
   // Effects
@@ -112,6 +112,9 @@ bool saveProfile(const char* path, Profile& p) {
   doc["ws"] = p.windowSize;
   doc["ut"] = p.upperThreshold;
   doc["lt"] = p.lowerThreshold;
+  doc["va"] = p.ascend;
+  doc["vd"] = p.descend;
+  doc["fd"] = p.footDeadZone;
   doc["df"] = p.doFilter;
   doc["ft"] = p.filterType;
   doc["ea"] = p.emaAlpha;
@@ -130,7 +133,7 @@ bool saveProfile(const char* path, Profile& p) {
   doc["lg"] = p.logoType;
   doc["sl"] = p.screenLogo;
   doc["kt"] = p.keyTravel;
-  doc["hdkt"] = p.hallDisplayAsKT;
+  doc["hdkt"] = p.asMm;
   doc["aod"] = p.AOD;
   doc["aodab"] = p.AODAntiBurnIn;
   doc["gmt"] = p.GMTPlus;
@@ -192,6 +195,9 @@ bool loadProfile(const char* path, Profile& p) {
   p.windowSize     = doc["ws"] | p.windowSize;
   p.upperThreshold = doc["ut"] | p.upperThreshold;
   p.lowerThreshold = doc["lt"] | p.lowerThreshold;
+  p.ascend         = doc["va"] | p.ascend;
+  p.descend        = doc["vd"] | p.descend;
+  p.footDeadZone   = doc["fd"] | p.footDeadZone;
   p.doFilter       = doc["df"] | p.doFilter;
   p.filterType     = doc["ft"] | p.filterType;
   p.emaAlpha       = doc["ea"] | p.emaAlpha;
@@ -219,7 +225,7 @@ bool loadProfile(const char* path, Profile& p) {
   p.screenSaveDuration = doc["ss"]    | p.screenSaveDuration;
   p.screenOffDuration  = doc["so"]    | p.screenOffDuration;
   p.logoType           = doc["lg"]    | p.logoType;
-  p.hallDisplayAsKT    = doc["hdkt"]  | p.hallDisplayAsKT;
+  p.asMm    = doc["hdkt"]  | p.asMm;
   p.keyTravel          = doc["kt"]    | p.keyTravel;
   p.AOD                = doc["aod"]   | p.AOD;
   p.AODAntiBurnIn      = doc["aodab"] | p.AODAntiBurnIn;
