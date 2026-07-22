@@ -594,12 +594,12 @@ static const OutputTarget axisOnlyDstCodes[] = {
 static const int axisOnlyDstCount = 9;
 
 static const char* threshOnlyDstLabels[] = {
-  "Key","GPBtn","MsBtn"
+  "GPBtn","MsBtn"
 };
 static const OutputTarget threshOnlyDstCodes[] = {
-  OUT_KEY, OUT_BTN_GP, OUT_MOUSE_BTN
+  OUT_BTN_GP, OUT_MOUSE_BTN
 };
-static const int threshOnlyDstCount = 3;
+static const int threshOnlyDstCount = 2;
 
 void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc) {
   int ssel = 1;
@@ -620,7 +620,7 @@ void axsICfg(uint8_t& srce, float& im, float& ix, bool imuSrc) {
           if (srce < 6)       { im = 0.0f;    ix = 1.0f;   }
           else if (srce < 9)  { im = -500.0f; ix = 500.0f; }
           else if (srce < 12) { im = -2.0f;   ix = 2.0f;   }
-          else                { im = -70.0f; ix = 70.0f; }
+          else                { im = -50.0f; ix = 50.0f; }
         }
         break;
       }

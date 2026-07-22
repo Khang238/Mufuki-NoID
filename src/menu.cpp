@@ -174,7 +174,7 @@ int noidMenu(const char* title, int startIndex, const char* list, bool rlb) {
   if (USE_U8G2_MENU) return u8g2.userInterfaceSelectionList(title, startIndex, list);
   if (startIndex > 0) startIndex--;
   int selected = startIndex;
-  
+
   int count = countItems(list);
   int fontH = u8g2.getMaxCharHeight();
   int boxH = fontH + 2;
@@ -188,7 +188,9 @@ int noidMenu(const char* title, int startIndex, const char* list, bool rlb) {
 
   float selBox = selected * boxH;
 
-  windowPos = rlb ? windowPos : selBox;
+  static char lastTitle[32] = "";
+  if (strcmp(title, lastTitle) != 0) windowPos = selBox;
+  strcpy(lastTitle, title);
 
   float maxWindowPos = (count * boxH > viewH) ? (count * boxH - viewH) : 0;
 
@@ -840,7 +842,7 @@ void effectMenu() {
         }
         subSel = noidMenu("RGB Led", subSel, menuElements.c_str(), true);
         if (subSel == 1) prf.rgb = !prf.rgb;
-        if (subSel == 2) prf.rgbBri = (uint8_t)valueSet("Brightness", prf.rgbBri, true, 0, 255);
+        if (subSel == 2) prf.rgbBri = (uint8_t)valueSet("Brightness", prf.rgbBri, true, 0, 255, true);
         // u8g2.user.InterfaceInputValue("Brightness\n", "(0 - 255): ", &prf.rgbBri, 0, 255, 3, " ");
         if (subSel == 3) prf.doRainbow = !prf.doRainbow;
         if (subSel == 4) {
@@ -1952,7 +1954,7 @@ void connectMenu() {
           "Always Report: " + String(alwaysReport ? "[On]" : "[Off]") + "\n"
           "Polling Rate: " + String(1000000 / LOOP_INTERVAL_US) + " Hz";
         if (usbMode == 1) {
-          usbItems += "VID PID Set: ";
+          usbItems += "\nVID PID Set: ";
           switch (vpidChange) {
             case 0: usbItems += "PS4"; break;
             case 1: usbItems += "Xbox"; break;

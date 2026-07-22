@@ -134,22 +134,22 @@ void writeTarget(OutputState& state, OutputTarget dst, float val, uint8_t extra,
     case OUT_KEY:
     if (val > 0.5f) {
         for (int i = 0; i < 6; i++) {
-        if (state.keys[i] == extra) break;        // đã có rồi, bỏ qua
-        if (state.keys[i] == 0) { state.keys[i] = extra; break; } // thêm vào slot trống
+        if (state.keys[i] == extra) break;
+        if (state.keys[i] == 0) { state.keys[i] = extra; break; }
         }
     } else {
         for (int i = 0; i < 6; i++) {
-        if (state.keys[i] == extra) { state.keys[i] = 0; break; } // xóa
+        if (state.keys[i] == extra) { state.keys[i] = 0; break; }
         }
     }
     break;
     case OUT_AXIS_LX: {
         if (combine == COMBINE_POS)
-          state.axes[0] += (int16_t)max(0.0f, val);  // chỉ lấy phần dương
+          state.axes[0] += (int16_t)max(0.0f, val);
         else if (combine == COMBINE_NEG)
-          state.axes[0] += (int16_t)min(0.0f, val);  // chỉ lấy phần âm
+          state.axes[0] += (int16_t)min(0.0f, val);
         else
-          state.axes[0] = (int16_t)val;              // ghi đè bình thường
+          state.axes[0] = (int16_t)val;
     } break;
     case OUT_AXIS_LY: {
         if (combine == COMBINE_POS)
@@ -218,10 +218,9 @@ void applyMappings(Profile& p, OutputState& state) {
       writeTarget(state, m.dst, mapped, 0, m.combine);
     } else {
       // threshold → digital
-      bool trigger =
-        (val >  m.data.threshold.posThresh) ||
-        (val < -m.data.threshold.negThresh) ||
-        (fabs(val) > m.data.threshold.absThresh);
+      bool trigger =  (m.data.threshold.posThresh == 0 ? false : (val >  m.data.threshold.posThresh)) ||
+                      (m.data.threshold.negThresh == 0 ? false : (val < -m.data.threshold.negThresh)) ||
+                      (m.data.threshold.absThresh == 0 ? false : (fabs(val) > m.data.threshold.absThresh));
       writeTarget(state, m.dst, trigger ? 1.0f : 0.0f, m.keycode, m.combine);
     }
   }

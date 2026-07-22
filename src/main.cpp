@@ -237,6 +237,13 @@ void displayTask(void* param) {
               delay(randRange(10, 80));
             }
           }
+        } else {
+          uint8_t kc[6] = {0};
+          kc[0] = 0x28;
+          tud_hid_keyboard_report(dev.report_id, 0, kc);
+          delay(50);
+          kc[0] = 0;
+          tud_hid_keyboard_report(dev.report_id, 0, kc);
         }
         screenWait = false;
         screenOff = false;
